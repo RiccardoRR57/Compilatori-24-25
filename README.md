@@ -10,8 +10,8 @@ Questo repository contiene le soluzioni agli assignment relativi alla parte di *
 
 1. **Clonare il repository:**
    ```bash
-   git clone <repository-url>
-   cd <repository-name>
+   git clone https://github.com/RiccardoRR57/Compilatori-24-25.git
+   cd https://github.com/RiccardoRR57/Compilatori-24-25.git
    ```
 
 ## Team
