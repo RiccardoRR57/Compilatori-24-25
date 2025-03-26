@@ -102,17 +102,25 @@ namespace
             return true;
           }
         }
+      // Mi trovo in una operazione
       }else if (BinaryOperator *ope = dyn_cast<BinaryOperator>(&I)) {
+        // Controllo se questa è una divisione/unsigned divisione
         if (ope->getOpcode() == Instruction::SDiv || ope->getOpcode() == Instruction::UDiv) {
+          // Controllo se l'operando 1 è una costante
           if (ConstantInt *c = dyn_cast<ConstantInt>(ope->getOperand(1))) {
             if(c->getValue() == 1) {
+              // Rimpiazzo gli usi se questa costante è uguale a 1
               ope->replaceAllUsesWith(ope->getOperand(0));
               return true;
             }
           }
+          // Se non è una divisione controllo se è una sottrazione
         }else if(ope->getOpcode() == Instruction::Sub) {
+          // Controllo se l'operando 1 è una costante
           if (ConstantInt *c = dyn_cast<ConstantInt>(ope->getOperand(1))) {
+            // Controllo se la costante è uguale a 0
             if(c->getValue() == 0) {
+              // Rimpiazzo tutti gli usi
               ope->replaceAllUsesWith(ope->getOperand(0));
               return true;
             }
