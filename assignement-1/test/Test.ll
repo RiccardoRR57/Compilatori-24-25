@@ -9,7 +9,7 @@ entry:
     %val = add i32 10, 5    ; Initialize %val = 15
     
     ; Multiplication by power of 2 (can be replaced with shift left)
-    %mul = mul i32 %val, 8   ; Can be replaced with %val << 3
+    %mul = mul i32 %val, 15   ; Can be replaced with %val << 3
     
     ; Division by power of 2 (can be replaced with shift right)
     %div = sdiv i32 %val, 4  ; Can be replaced with %val >> 2

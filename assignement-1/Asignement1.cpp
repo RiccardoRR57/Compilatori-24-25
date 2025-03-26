@@ -102,24 +102,33 @@ namespace
             return true;
           }
         }
-      // Mi trovo in una operazione
-      }else if (BinaryOperator *ope = dyn_cast<BinaryOperator>(&I)) {
+        // Mi trovo in una operazione
+      }
+      else if (BinaryOperator *ope = dyn_cast<BinaryOperator>(&I))
+      {
         // Controllo se questa è una divisione/unsigned divisione
-        if (ope->getOpcode() == Instruction::SDiv || ope->getOpcode() == Instruction::UDiv) {
+        if (ope->getOpcode() == Instruction::SDiv || ope->getOpcode() == Instruction::UDiv)
+        {
           // Controllo se l'operando 1 è una costante
-          if (ConstantInt *c = dyn_cast<ConstantInt>(ope->getOperand(1))) {
-            if(c->getValue() == 1) {
+          if (ConstantInt *c = dyn_cast<ConstantInt>(ope->getOperand(1)))
+          {
+            if (c->getValue() == 1)
+            {
               // Rimpiazzo gli usi se questa costante è uguale a 1
               ope->replaceAllUsesWith(ope->getOperand(0));
               return true;
             }
           }
           // Se non è una divisione controllo se è una sottrazione
-        }else if(ope->getOpcode() == Instruction::Sub) {
+        }
+        else if (ope->getOpcode() == Instruction::Sub)
+        {
           // Controllo se l'operando 1 è una costante
-          if (ConstantInt *c = dyn_cast<ConstantInt>(ope->getOperand(1))) {
+          if (ConstantInt *c = dyn_cast<ConstantInt>(ope->getOperand(1)))
+          {
             // Controllo se la costante è uguale a 0
-            if(c->getValue() == 0) {
+            if (c->getValue() == 0)
+            {
               // Rimpiazzo tutti gli usi
               ope->replaceAllUsesWith(ope->getOperand(0));
               return true;
@@ -156,45 +165,128 @@ namespace
     bool runOnInstruction(Instruction &I)
     {
       errs() << I << '\n';
+      // Mi trovo in una moltiplicazione
       if (MulOperator *mul = dyn_cast<MulOperator>(&I))
       {
+        // Controllo il valore del primo operando
         if (ConstantInt *c = dyn_cast<ConstantInt>(mul->getOperand(0)))
         {
+          // Controllo se è una potenza di 2
           if (c->getValue().isPowerOf2())
           {
+            // Calcoliamo il log
             Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2());
+            // Creiamo l'istruzione
             Instruction *shift = BinaryOperator::Create(Instruction::Shl, mul->getOperand(1), shift_val);
+            // Inseriamo e rimuoviamo l'istruzione NON ottimizzata
             shift->insertBefore(&I);
             I.replaceAllUsesWith(shift);
             return true;
           }
+          // Controllo se siamo a disstanza -1 da potenza di 2 più vicina
+          else if ((c->getValue()+1).isPowerOf2())
+          {
+            // Calcoliamo il log addizionato di 1
+            Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2() + 1);
+            // Creiamo l'istruzione
+            Instruction *shift = BinaryOperator::Create(Instruction::Shl, mul->getOperand(1), shift_val);
+            // Inseriamo l'istruzione
+            shift->insertBefore(&I);
+            // Creiamo l'istruzione finale
+            Instruction *sub = BinaryOperator::Create(Instruction::Sub, shift, mul->getOperand(1));
+            // Inseriamo l'istruzione di add
+            sub->insertBefore(&I);
+            // Rimuoviamo l'istruzione NON ottimizzata
+            I.replaceAllUsesWith(sub);
+            
+            return true;
+          }
+          // Controllo se siamo a distanza +1 da potenza di 2 più vicina
+          else if ((c->getValue() - 1).isPowerOf2())
+          {
+            // Calcoliamo il log
+            Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2());
+            // Creiamo l'istruzione
+            Instruction *shift = BinaryOperator::Create(Instruction::Shl, mul->getOperand(1), shift_val);
+            // Inseriamo l'istruzione
+            shift->insertBefore(&I);
+            // Creiamo l'istruzione finale
+            Instruction *add = BinaryOperator::Create(Instruction::Add, shift, mul->getOperand(1));
+            // Inseriamo l'istruzione di sub
+            add->insertBefore(&I);
+            // Rimuoviamo l'istruzione NON ottimizzata
+            I.replaceAllUsesWith(add);
+            return true;
+          }
         }
-        else if (ConstantInt *c = dyn_cast<ConstantInt>(mul->getOperand(1))){
+        // Controllo il valore del secondo operando
+        else if (ConstantInt *c = dyn_cast<ConstantInt>(mul->getOperand(1)))
+        {
+          // Controllo se è una potenza di 2
           if (c->getValue().isPowerOf2())
           {
+            // Calcoliamo il log
             Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2());
+            // Creiamo l'istruzione
             Instruction *shift = BinaryOperator::Create(Instruction::Shl, mul->getOperand(0), shift_val);
+            // Inseriamo l'istruzione e rimuoviamo quella NON ottimizzata
             shift->insertBefore(&I);
             I.replaceAllUsesWith(shift);
             return true;
           }
-        }
-      }
-      else if (BinaryOperator *div = dyn_cast<BinaryOperator>(&I))
-      {
-        if (div->getOpcode() != Instruction::SDiv && div->getOpcode() != Instruction::UDiv)
-          return false;
-        else if (ConstantInt *c = dyn_cast<ConstantInt>(div->getOperand(1))) 
-        {
-          if(c->getValue().isPowerOf2())
+          else if ((c->getValue()+1).isPowerOf2())
           {
-            Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2());
-            Instruction *shift = BinaryOperator::Create(Instruction::LShr, div->getOperand(0), shift_val);
+            // Calcoliamo il log addizionato di 1
+            Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2() + 1);
+            // Creiamo l'istruzione
+            Instruction *shift = BinaryOperator::Create(Instruction::Shl, mul->getOperand(0), shift_val);
+            // Inseriamo e rimuoviamo l'istruzione NON ottimizzata
             shift->insertBefore(&I);
-            I.replaceAllUsesWith(shift);
+            // Creiamo l'istruzione finale
+            Instruction *sub = BinaryOperator::Create(Instruction::Sub, shift, mul->getOperand(0));
+            // Inseriamo l'istruzione di add
+            sub->insertBefore(&I);
+            I.replaceAllUsesWith(sub);
+            return true;
+          }
+          else if ((c->getValue() - 1).isPowerOf2())
+          {
+            // Calcoliamo il log
+            Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2());
+            // Creiamo l'istruzione
+            Instruction *shift = BinaryOperator::Create(Instruction::Shl, mul->getOperand(0), shift_val);
+            // Inseriamo l'istruzione
+            shift->insertBefore(&I);
+            // Creiamo l'istruzione finale
+            Instruction *add = BinaryOperator::Create(Instruction::Add, shift, mul->getOperand(0));
+            // Inseriamo l'istruzione di add
+            add->insertBefore(&I);
+            // Rimuoviamo l'istruzione NON ottimizzata
+            I.replaceAllUsesWith(add);
             return true;
           }
         }
+        // Mi trovo in una operazione
+        else if (BinaryOperator *div = dyn_cast<BinaryOperator>(&I))
+        {
+          // Controllo se è una divisione
+          if (div->getOpcode() != Instruction::SDiv && div->getOpcode() != Instruction::UDiv)
+            return false;
+          // Controllo il primo operando
+          else if (ConstantInt *c = dyn_cast<ConstantInt>(div->getOperand(1)))
+          {
+            // Controllo se l'operando è una potenza di 2
+            if (c->getValue().isPowerOf2())
+            {
+              Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2());
+              Instruction *shift = BinaryOperator::Create(Instruction::AShr, div->getOperand(0), shift_val);
+              shift->insertBefore(&I);
+              I.replaceAllUsesWith(shift);
+              return true;
+            }
+          }
+        }
+        return false;
       }
       return false;
     }
@@ -205,7 +297,8 @@ namespace
 //-----------------------------------------------------------------------------
 // New PM Registration
 //-----------------------------------------------------------------------------
-llvm::PassPluginLibraryInfo getOpts1()
+llvm::PassPluginLibraryInfo
+getOpts1()
 {
   return {LLVM_PLUGIN_API_VERSION, "Assignement1", LLVM_VERSION_STRING,
           [](PassBuilder &PB)
