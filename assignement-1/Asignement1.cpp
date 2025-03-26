@@ -102,6 +102,22 @@ namespace
             return true;
           }
         }
+      }else if (BinaryOperator *ope = dyn_cast<BinaryOperator>(&I)) {
+        if (ope->getOpcode() == Instruction::SDiv || ope->getOpcode() == Instruction::UDiv) {
+          if (ConstantInt *c = dyn_cast<ConstantInt>(ope->getOperand(1))) {
+            if(c->getValue() == 1) {
+              ope->replaceAllUsesWith(ope->getOperand(0));
+              return true;
+            }
+          }
+        }else if(ope->getOpcode() == Instruction::Sub) {
+          if (ConstantInt *c = dyn_cast<ConstantInt>(ope->getOperand(1))) {
+            if(c->getValue() == 0) {
+              ope->replaceAllUsesWith(ope->getOperand(0));
+              return true;
+            }
+          }
+        }
       }
       return false;
     }
