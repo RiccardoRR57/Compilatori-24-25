@@ -164,7 +164,6 @@ namespace
 
     bool runOnInstruction(Instruction &I)
     {
-      errs() << I << '\n';
       // Mi trovo in una moltiplicazione
       if (MulOperator *mul = dyn_cast<MulOperator>(&I))
       {
@@ -292,6 +291,95 @@ namespace
     }
     static bool isRequired() { return true; }
   };
+
+  // Multi Instruction optimization pass
+  struct MultiInstr : PassInfoMixin<MultiInstr>
+  { 
+    // Main entry point, takes IR unit to run the pass on (&F) and the
+    // corresponding pass manager (to be queried if need be)
+    PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
+    {
+      for (auto B = F.begin(); B != F.end(); ++B)
+      {
+        for (auto I = (*B).begin(); I != (*B).end(); ++I)
+        {
+          if (runOnInstruction(*I))
+          {
+            I = I->eraseFromParent();
+            I--;
+          }
+        }
+      }
+      return PreservedAnalyses::all();
+    }
+
+    bool runOnInstruction(Instruction &I) {
+      // Mi trovo in una add
+      if(AddOperator *add = dyn_cast<AddOperator>(&I)) 
+      {
+        // Controllo se l'operando 0 è una costante
+        if(ConstantInt *c = dyn_cast<ConstantInt>(add->getOperand(0)))
+        {
+          // Reperisco istruzione successiva
+          Instruction *next = I.getNextNode();
+          // Controllo se è sottrazione
+          if(SubOperator *sub = dyn_cast<SubOperator>(next)) {
+            // Controllo se si verificano le condizioni per ottimizzazione
+            if(add == sub->getOperand(0) && (add->getOperand(0) == sub->getOperand(1)))
+            {
+              sub->replaceAllUsesWith(add->getOperand(1));
+              next->eraseFromParent();
+              return false;
+            }
+          }
+        }
+        // Controllo se l'operando 1 è una costante
+        if(ConstantInt *c = dyn_cast<ConstantInt>(add->getOperand(1)))
+        {
+          // Reperisco istruzione successiva
+          Instruction *next = I.getNextNode();
+          // Controllo se è sottrazione
+          if(SubOperator *sub = dyn_cast<SubOperator>(next)) {
+            // Controllo se si verificano le condizioni per ottimizzazione
+            if(add == sub->getOperand(0) && (add->getOperand(1) == sub->getOperand(1)))
+            {
+              sub->replaceAllUsesWith(add->getOperand(0));
+              next->eraseFromParent();
+              return false;
+            }
+          }
+        }
+      }
+      if(SubOperator *sub = dyn_cast<SubOperator>(&I)) 
+      {
+        // Controllo se l'operando 0 è una costante
+        if(ConstantInt *c = dyn_cast<ConstantInt>(sub->getOperand(1)))
+        {
+          // Reperisco istruzione successiva
+          Instruction *next = I.getNextNode();
+          // Controllo se è sottrazione
+          if(AddOperator *add = dyn_cast<AddOperator>(next)) {
+            // Controllo se si verificano le condizioni per ottimizzazione
+            if(sub == add->getOperand(0) && (sub->getOperand(1) == add->getOperand(1)))
+            {
+              add->replaceAllUsesWith(sub->getOperand(0));
+              next->eraseFromParent();
+              return false;
+            }
+            if(sub == add->getOperand(1) && (sub->getOperand(1) == add->getOperand(0)))
+            {
+              add->replaceAllUsesWith(sub->getOperand(0));
+              next->eraseFromParent();
+              return false;
+            }
+          }
+        }
+      }
+      return false;
+    }
+    static bool isRequired() { return true; }
+  };
+
 } // namespace
 
 //-----------------------------------------------------------------------------
@@ -315,6 +403,18 @@ getOpts1()
                   else if (Name == "strength-reduction")
                   {
                     FPM.addPass(StrRed());
+                    return true;
+                  }
+                  else if (Name == "multi-instruction") 
+                  {
+                    FPM.addPass(MultiInstr());
+                    return true;
+                  }
+                  else if (Name == "all")
+                  {
+                    FPM.addPass(AlgIde());
+                    FPM.addPass(StrRed());
+                    FPM.addPass(MultiInstr());
                     return true;
                   }
                   return false;

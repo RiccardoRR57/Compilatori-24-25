@@ -7,13 +7,17 @@ define i32 @main() {
 entry:
     ; Value to operate on
     %val = add i32 10, 5    ; Initialize %val = 15
+
+    %sub = sub i32 %val, 3    ; Addition
+    %add = add i32 %sub, 3    ; Subtraction
+    
     
     ; Multiplication by power of 2 (can be replaced with shift left)
-    %mul = mul i32 %val, 15   ; Can be replaced with %val << 3
+    %mul = mul i32 %add, 15   ; Can be replaced with %val << 3
     
     ; Division by power of 2 (can be replaced with shift right)
-    %div = sdiv i32 %val, 4  ; Can be replaced with %val >> 2
-    %div2 = udiv i32 %val, 4 ; Can be replaced with %val >> 2
+    %div = sdiv i32 %add, 4  ; Can be replaced with %val >> 2
+    %div2 = udiv i32 %add, 4 ; Can be replaced with %val >> 2
     
     ; Combine results
     %result = add i32 %mul, %div
