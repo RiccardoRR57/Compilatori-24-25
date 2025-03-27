@@ -8,74 +8,90 @@ Questa cartella contiene il codice e i risultati relativi all'Assignment 1 del c
 - Clang compiler
 - Make (opzionale, ma consigliato)
 
-## Struttura della directory
-
-```
-assignement-1/
-├── src/            # Contiene i file sorgente
-├── build/          # Directory per i file compilati
-├── optimizations/  # Output delle varie fasi di ottimizzazione
-└── README.md       # Questo file
-```
-
 ## Esecuzione da linea di comando
+
+### 1. Compilazione del file Assignement1.cpp
+
+```bash
+# Crea ed entra nella cartella build
+mkdir build
+cd build
+
+# Genera il Makefile
+cmake -DLT_LLVM_INSTALL_DIR=$LLVM_DIR ..
+
+# Compilazione effettiva
+make
+```
+
 
 ### 1. Compilazione del codice sorgente in LLVM IR
 
 ```bash
+# Entra nella cartella examples
+cd ../examples
 # Genera il codice LLVM IR non ottimizzato
-clang -S -emit-llvm src/mio_programma.c -o build/mio_programma.ll
-
-# Oppure con ottimizzazioni di base
-clang -S -emit-llvm -O1 src/mio_programma.c -o build/mio_programma_O1.ll
+clang -S -emit-llvm mio_programma.c -o mio_programma.ll
 ```
 
 ### 2. Applicazione delle singole ottimizzazioni
 
 ```bash
-# Esegui l'ottimizzazione di analisi della memoria
-opt -mem2reg build/mio_programma.ll -S -o optimizations/mem2reg.ll
+# Entra nella cartella examples dove è presente il file LLVM IR
+cd examples
 
-# Esegui la propagazione delle costanti
-opt -constprop build/mio_programma.ll -S -o optimizations/constprop.ll
+# Esegui l'ottimizzazione di identità algebrica
+opt -load-pass-plugin=../build/libAssignement1.so -passes="algebraic-identity" mio_programma.ll -So mio_programma_ottimizzato.ll
+# Alternativa per architetture ARM (Apple Silicon)
+opt -load-pass-plugin=../build/libAssignement1.dylib -passes="algebraic-identity" mio_programma.ll -So mio_programma_ottimizzato.ll
 
-# Esegui il dead code elimination
-opt -dce build/mio_programma.ll -S -o optimizations/dce.ll
+# Esegui l'ottimizzazione di strength reduction
+opt -load-pass-plugin=../build/libAssignement1.so -passes="strength-reduction" mio_programma.ll -So mio_programma_ottimizzato.ll
+# Alternativa per architetture ARM (Apple Silicon)
+opt -load-pass-plugin=../build/libAssignement1.dylib -passes="strength-reduction" mio_programma.ll -So mio_programma_ottimizzato.ll
 
-# Combina più ottimizzazioni
-opt -mem2reg -constprop -dce build/mio_programma.ll -S -o optimizations/combined.ll
-```
+# Esegui l'ottimizzazione di multi instruction optimization
+opt -load-pass-plugin=../build/libAssignement1.so -passes="multi-instruction" mio_programma.ll -So mio_programma_ottimizzato.ll
+# Alternativa per architetture ARM (Apple Silicon)
+opt -load-pass-plugin=../build/libAssignement1.dylib -passes="multi-instruction" mio_programma.ll -So mio_programma_ottimizzato.ll
 
-### 3. Generazione del codice assembly e compilazione finale
-
-```bash
-# Genera assembly x86
-llc optimizations/combined.ll -o build/mio_programma.s
-
-# Compila in eseguibile
-gcc build/mio_programma.s -o build/mio_programma
+# Esegui le tre ottimizzazioni contemporaneamente
+opt -load-pass-plugin=../build/libAssignement1.so -passes="all" mio_programma.ll -So mio_programma_ottimizzato.ll
+# Alternativa per architetture ARM (Apple Silicon)
+opt -load-pass-plugin=../build/libAssignement1.dylib -passes="all" mio_programma.ll -So mio_programma_ottimizzato.ll
 ```
 
 ## Descrizione delle ottimizzazioni
 
-### mem2reg
-Questa ottimizzazione promuove le allocazioni di memoria nello stack (alloca) a registri nel SSA (Static Single Assignment). Elimina le istruzioni di load e store non necessarie, migliorando significativamente le prestazioni e preparando il terreno per altre ottimizzazioni.
+### Algebraic Identity
+Identifica e semplifica le operazioni aritmetiche con elementi neutri, riducendo la complessità computazionale:
 
-### constprop (Constant Propagation)
-Identifica le variabili che contengono valori costanti e sostituisce i riferimenti a queste variabili con i valori costanti corrispondenti. Questo permette di semplificare le espressioni e ridurre il numero di istruzioni.
+#### Operazioni con addizione e sottrazione
+- **Addizione per zero**: Trasforma `x + 0` o `0 + x` in `x` 
+- **Sottrazione per zero**: Trasforma `x - 0` in `x`
 
-### dce (Dead Code Elimination)
-Rimuove il codice che non influisce sul risultato del programma, come variabili non utilizzate, istruzioni il cui risultato non viene mai letto, o codice irraggiungibile.
+#### Operazioni con moltiplicazione e divisione
+- **Moltiplicazione per uno**: Trasforma `x * 1` o `1 * x` in `x`
+- **Divisione per uno**: Trasforma `x / 1` in `x`
 
-### licm (Loop Invariant Code Motion)
-Sposta le istruzioni invarianti fuori dai cicli, riducendo il numero di operazioni eseguite durante l'iterazione del ciclo.
+Queste trasformazioni preservano il risultato matematico originale mentre rimuovono calcoli ridondanti, migliorando l'efficienza senza alterare la semantica del programma.
 
-### indvars (Induction Variable Simplification)
-Semplifica le variabili di induzione nei cicli, riducendo la complessità delle espressioni e migliorando le prestazioni.
+### Strength Reduction 
+Sostituisce operazioni costose con operazioni equivalenti ma più efficienti:
 
-## Note aggiuntive
+#### Moltiplicazione
+- **Moltiplicazione per potenze di 2**: Sostituisce `x * 2^n` con l'operazione di shift `x << n`, che è computazionalmente più efficiente.
+- **Moltiplicazione per costanti vicine a potenze di 2**:
+  - Per costanti del tipo `2^n - 1`: Sostituisce `x * (2^n - 1)` con `(x << n) - x`
+  - Per costanti del tipo `2^n + 1`: Sostituisce `x * (2^n + 1)` con `(x << n) + x`
 
-Per confrontare le diverse ottimizzazioni, è possibile utilizzare strumenti come `diff` o editor di testo per visualizzare le differenze tra i vari file IR generati:
+#### Divisione
+- **Divisione per potenze di 2**: Sostituisce `x / 2^n` con l'operazione di shift `x >> n` per tipi unsigned, o con una sequenza appropriata di istruzioni per tipi signed (per gestire correttamente l'arrotondamento).
 
-```bash
-diff -y optimizations/mem2reg.ll
+### Multi Instruction
+Ottimizza sequenze di istruzioni per rimuovere ridondanze e operazioni inutili:
+
+#### Fusione di operazioni
+- **Addizioni e sottrazioni successive ridondanti**:
+  - Per sequenze del tipo `a = b + n`, `c = a - n`: Elimina la seconda istruzione e sostituisce `c` con `b`
+  - Per sequenze del tipo `a = b - n`, `c = a + n`: Elimina la seconda istruzione e sostituisce `c` con `b`
