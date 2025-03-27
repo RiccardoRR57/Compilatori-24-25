@@ -327,7 +327,9 @@ namespace
             // Controllo se si verificano le condizioni per ottimizzazione
             if(add == sub->getOperand(0) && (add->getOperand(0) == sub->getOperand(1)))
             {
+              // Rimpiazziamo tutti gli usi della sottrazione
               sub->replaceAllUsesWith(add->getOperand(1));
+              // Cancelliamo la sottrazione
               next->eraseFromParent();
               return false;
             }
@@ -343,7 +345,9 @@ namespace
             // Controllo se si verificano le condizioni per ottimizzazione
             if(add == sub->getOperand(0) && (add->getOperand(1) == sub->getOperand(1)))
             {
+              // Rimpiazziamo tutti gli usi della sottrazione
               sub->replaceAllUsesWith(add->getOperand(0));
+              // Cancelliamo la sottrazione
               next->eraseFromParent();
               return false;
             }
@@ -353,6 +357,8 @@ namespace
       if(SubOperator *sub = dyn_cast<SubOperator>(&I)) 
       {
         // Controllo se l'operando 0 è una costante
+        // Effettuiamo controllo solo sul secondo operando dato che se la costante fosse 
+        // al primo non si potrebbe effettuare l'ottimizzazione
         if(ConstantInt *c = dyn_cast<ConstantInt>(sub->getOperand(1)))
         {
           // Reperisco istruzione successiva
@@ -362,13 +368,17 @@ namespace
             // Controllo se si verificano le condizioni per ottimizzazione
             if(sub == add->getOperand(0) && (sub->getOperand(1) == add->getOperand(1)))
             {
+              // Rimpiazziamo tutti gli usi dell'addizione
               add->replaceAllUsesWith(sub->getOperand(0));
+              // Cancelliamo l'addizione
               next->eraseFromParent();
               return false;
             }
             if(sub == add->getOperand(1) && (sub->getOperand(1) == add->getOperand(0)))
             {
+              // Rimpiazziamo tutti gli usi dell'addizione
               add->replaceAllUsesWith(sub->getOperand(0));
+              // Cancelliamo l'addizione
               next->eraseFromParent();
               return false;
             }
