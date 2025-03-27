@@ -15,9 +15,9 @@ Questo repository contiene le soluzioni agli assignment relativi alla parte di *
    ```
 
 ## Team
-- Marco Magni
-- Riccardo Rimondi
-- Manuel Testoni
+- Marco Magni        Matricola 166082
+- Riccardo Rimondi   Matricola 176931
+- Manuel Testoni     Matricola 180381
 
 ## Università
 Università degli Studi di Modena e Reggio Emilia
