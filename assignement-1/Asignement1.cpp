@@ -322,18 +322,27 @@ namespace
         {
           // Reperisco istruzione successiva
           Instruction *next = I.getNextNode();
-          // Controllo se è sottrazione
-          if(SubOperator *sub = dyn_cast<SubOperator>(next)) {
-            // Controllo se si verificano le condizioni per ottimizzazione
-            if(add == sub->getOperand(0) && (add->getOperand(0) == sub->getOperand(1)))
-            {
-              // Rimpiazziamo tutti gli usi della sottrazione
-              sub->replaceAllUsesWith(add->getOperand(1));
-              // Cancelliamo la sottrazione
-              next->eraseFromParent();
-              return false;
+          while(next) {
+            errs() << "Analizzo operazione " << *next << '\n';
+            // Controllo se è sottrazione
+            if(SubOperator *sub = dyn_cast<SubOperator>(next)) {
+              // Controllo se si verificano le condizioni per ottimizzazione
+              if(add == sub->getOperand(0) && (add->getOperand(0) == sub->getOperand(1)))
+              {
+                errs() << "Rimuovo operazione " << *next << '\n';
+                // Rimpiazziamo tutti gli usi della sottrazione
+                sub->replaceAllUsesWith(add->getOperand(1));
+                
+                // Cancelliamo la sottrazione
+                Instruction *temp = next->getPrevNode();
+                next->eraseFromParent();
+                next = temp;
+              }
             }
+            next = next->getNextNode();
           }
+          errs() << "finito ciclo\n";
+          return false;
         }
         // Controllo se l'operando 1 è una costante
         if(ConstantInt *c = dyn_cast<ConstantInt>(add->getOperand(1)))

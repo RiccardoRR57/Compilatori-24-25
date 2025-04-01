@@ -6,11 +6,12 @@ target triple = "x86_64-unknown-linux-gnu"
 define i32 @main() {
 entry:
   %val = add i32 10, 5
-  %sub = sub i32 %val, 3
-  %0 = shl i32 %val, 4
-  %1 = sub i32 %0, %val
-  %div = sdiv i32 %val, 4
-  %div2 = udiv i32 %val, 4
-  %result = add i32 %1, %div
+  %add = add i32 3, %val
+  %a = add i32 %val, 23
+  %b = mul i32 %val, 12
+  %mul = mul i32 %add, 15
+  %div = sdiv i32 %add, 4
+  %div2 = udiv i32 %add, 4
+  %result = add i32 %mul, %div
   ret i32 %result
 }
