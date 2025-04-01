@@ -17,6 +17,7 @@
 // License: MIT
 //=============================================================================
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
@@ -34,9 +35,16 @@ namespace
   // Algebraic Identity pass
   struct AlgIde : PassInfoMixin<AlgIde>
   {
+    PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
+      for (auto F = M.begin(); F != M.end(); ++F) {
+        runOnFunction(*F);
+      }
+      return PreservedAnalyses::all();
+    }
+
     // Main entry point, takes IR unit to run the pass on (&F) and the
     // corresponding pass manager (to be queried if need be)
-    PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
+    PreservedAnalyses runOnFunction(Function &F)
     {
       for (auto B = F.begin(); B != F.end(); ++B)
       {
@@ -144,9 +152,17 @@ namespace
   // Strength Reduction pass
   struct StrRed : PassInfoMixin<StrRed>
   {
+
+    PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
+      for (auto F = M.begin(); F != M.end(); ++F) {
+        runOnFunction(*F);
+      }
+      return PreservedAnalyses::all();
+    }
+
     // Main entry point, takes IR unit to run the pass on (&F) and the
     // corresponding pass manager (to be queried if need be)
-    PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
+    PreservedAnalyses runOnFunction(Function &F)
     {
       for (auto B = F.begin(); B != F.end(); ++B)
       {
@@ -295,9 +311,16 @@ namespace
   // Multi Instruction optimization pass
   struct MultiInstr : PassInfoMixin<MultiInstr>
   { 
+    PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
+      for (auto F = M.begin(); F != M.end(); ++F) {
+        runOnFunction(*F);
+      }
+      return PreservedAnalyses::all();
+    }
+
     // Main entry point, takes IR unit to run the pass on (&F) and the
     // corresponding pass manager (to be queried if need be)
-    PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
+    PreservedAnalyses runOnFunction(Function &F)
     {
       for (auto B = F.begin(); B != F.end(); ++B)
       {
@@ -402,29 +425,29 @@ getOpts1()
           [](PassBuilder &PB)
           {
             PB.registerPipelineParsingCallback(
-                [](StringRef Name, FunctionPassManager &FPM,
+                [](StringRef Name, ModulePassManager &MPM,
                    ArrayRef<PassBuilder::PipelineElement>)
                 {
                   if (Name == "algebraic-identity")
                   {
-                    FPM.addPass(AlgIde());
+                    MPM.addPass(AlgIde());
                     return true;
                   }
                   else if (Name == "strength-reduction")
                   {
-                    FPM.addPass(StrRed());
+                    MPM.addPass(StrRed());
                     return true;
                   }
                   else if (Name == "multi-instruction") 
                   {
-                    FPM.addPass(MultiInstr());
+                    MPM.addPass(MultiInstr());
                     return true;
                   }
                   else if (Name == "all")
                   {
-                    FPM.addPass(AlgIde());
-                    FPM.addPass(StrRed());
-                    FPM.addPass(MultiInstr());
+                    MPM.addPass(AlgIde());
+                    MPM.addPass(StrRed());
+                    MPM.addPass(MultiInstr());
                     return true;
                   }
                   return false;
