@@ -11,10 +11,17 @@ Questo repository contiene le soluzioni agli assignment relativi alla parte di *
 1. **Clonare il repository:**
    ```bash
    git clone https://github.com/RiccardoRR57/Compilatori-24-25.git
-   cd https://github.com/RiccardoRR57/Compilatori-24-25.git
+   cd Compilatori-24-25
    ```
 
 ## Team
+| Nome               | Matricola  | Mail                       |
+| -----------        | ---------- |-------------               |
+| Marco Magni        | 166082     | 299118@studenti.unimore.it |
+| Riccardo Rimondi   | 180381     | 323397@studenti.unimore.it |
+| Manuel Testoni     | 176931     | 318215@studenti.unimore.it |
+
+
 - Marco Magni        Matricola 166082   Mail 299118@studenti.unimore.it
 - Riccardo Rimondi   Matricola 180381   Mail 323397@studenti.unimore.it
 - Manuel Testoni     Matricola 176931   Mail 318215@studenti.unimore.it
