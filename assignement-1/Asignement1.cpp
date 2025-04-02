@@ -219,7 +219,7 @@ namespace
           }
         }
         // Controllo il valore del secondo operando
-        else if (ConstantInt *c = dyn_cast<ConstantInt>(mul->getOperand(1)))
+        if (ConstantInt *c = dyn_cast<ConstantInt>(mul->getOperand(1)))
         {
           // Controllo se è una potenza di 2
           if (c->getValue().isPowerOf2())
