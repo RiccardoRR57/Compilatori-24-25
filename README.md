@@ -21,11 +21,6 @@ Questo repository contiene le soluzioni agli assignment relativi alla parte di *
 | Riccardo Rimondi   | 180381     | 323397@studenti.unimore.it |
 | Manuel Testoni     | 176931     | 318215@studenti.unimore.it |
 
-
-- Marco Magni        Matricola 166082   Mail 299118@studenti.unimore.it
-- Riccardo Rimondi   Matricola 180381   Mail 323397@studenti.unimore.it
-- Manuel Testoni     Matricola 176931   Mail 318215@studenti.unimore.it
-
 ## Università
 Università degli Studi di Modena e Reggio Emilia
 ## Contatti
