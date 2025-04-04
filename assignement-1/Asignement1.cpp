@@ -183,7 +183,7 @@ namespace
             return true;
           }
           // Controllo se siamo a disstanza -1 da potenza di 2 più vicina
-          else if ((c->getValue()+1).isPowerOf2())
+          else if ((c->getValue() + 1).isPowerOf2())
           {
             // Calcoliamo il log addizionato di 1
             Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2() + 1);
@@ -197,7 +197,7 @@ namespace
             sub->insertBefore(&I);
             // Rimuoviamo l'istruzione NON ottimizzata
             I.replaceAllUsesWith(sub);
-            
+
             return true;
           }
           // Controllo se siamo a distanza +1 da potenza di 2 più vicina
@@ -219,7 +219,7 @@ namespace
           }
         }
         // Controllo il valore del secondo operando
-        else if (ConstantInt *c = dyn_cast<ConstantInt>(mul->getOperand(1)))
+        if (ConstantInt *c = dyn_cast<ConstantInt>(mul->getOperand(1)))
         {
           // Controllo se è una potenza di 2
           if (c->getValue().isPowerOf2())
@@ -233,7 +233,7 @@ namespace
             I.replaceAllUsesWith(shift);
             return true;
           }
-          else if ((c->getValue()+1).isPowerOf2())
+          else if ((c->getValue() + 1).isPowerOf2())
           {
             // Calcoliamo il log addizionato di 1
             Value *shift_val = ConstantInt::get(c->getType(), c->getValue().logBase2() + 1);
@@ -294,7 +294,7 @@ namespace
 
   // Multi Instruction optimization pass
   struct MultiInstr : PassInfoMixin<MultiInstr>
-  { 
+  {
     // Main entry point, takes IR unit to run the pass on (&F) and the
     // corresponding pass manager (to be queried if need be)
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &)
@@ -313,76 +313,99 @@ namespace
       return PreservedAnalyses::all();
     }
 
-    bool runOnInstruction(Instruction &I) {
+    bool runOnInstruction(Instruction &I)
+    {
       // Mi trovo in una add
-      if(AddOperator *add = dyn_cast<AddOperator>(&I)) 
+      if (AddOperator *add = dyn_cast<AddOperator>(&I))
       {
         // Controllo se l'operando 0 è una costante
-        if(ConstantInt *c = dyn_cast<ConstantInt>(add->getOperand(0)))
+        if (ConstantInt *c = dyn_cast<ConstantInt>(add->getOperand(0)))
         {
           // Reperisco istruzione successiva
           Instruction *next = I.getNextNode();
-          // Controllo se è sottrazione
-          if(SubOperator *sub = dyn_cast<SubOperator>(next)) {
-            // Controllo se si verificano le condizioni per ottimizzazione
-            if(add == sub->getOperand(0) && (add->getOperand(0) == sub->getOperand(1)))
+          while (next)
+          {
+            // Controllo se è sottrazione
+            if (SubOperator *sub = dyn_cast<SubOperator>(next))
             {
-              // Rimpiazziamo tutti gli usi della sottrazione
-              sub->replaceAllUsesWith(add->getOperand(1));
-              // Cancelliamo la sottrazione
-              next->eraseFromParent();
-              return false;
+              // Controllo se si verificano le condizioni per ottimizzazione
+              if (add == sub->getOperand(0) && (add->getOperand(0) == sub->getOperand(1)))
+              {
+                // Rimpiazziamo tutti gli usi della sottrazione
+                sub->replaceAllUsesWith(add->getOperand(1));
+                // Cancelliamo la sottrazione
+                Instruction *temp = next->getPrevNode();
+                next->eraseFromParent();
+                next = temp;
+              }
             }
+            next = next->getNextNode();
           }
+          return false;
         }
         // Controllo se l'operando 1 è una costante
-        if(ConstantInt *c = dyn_cast<ConstantInt>(add->getOperand(1)))
+        if (ConstantInt *c = dyn_cast<ConstantInt>(add->getOperand(1)))
         {
           // Reperisco istruzione successiva
           Instruction *next = I.getNextNode();
-          // Controllo se è sottrazione
-          if(SubOperator *sub = dyn_cast<SubOperator>(next)) {
-            // Controllo se si verificano le condizioni per ottimizzazione
-            if(add == sub->getOperand(0) && (add->getOperand(1) == sub->getOperand(1)))
+          while (next)
+          {
+            // Controllo se è sottrazione
+            if (SubOperator *sub = dyn_cast<SubOperator>(next))
             {
-              // Rimpiazziamo tutti gli usi della sottrazione
-              sub->replaceAllUsesWith(add->getOperand(0));
-              // Cancelliamo la sottrazione
-              next->eraseFromParent();
-              return false;
+              // Controllo se si verificano le condizioni per ottimizzazione
+              if (add == sub->getOperand(0) && (add->getOperand(1) == sub->getOperand(1)))
+              {
+                // Rimpiazziamo tutti gli usi della sottrazione
+                sub->replaceAllUsesWith(add->getOperand(0));
+                // Cancelliamo la sottrazione
+                Instruction *temp = next->getPrevNode();
+                next->eraseFromParent();
+                next = temp;
+              }
             }
+            next = next->getNextNode();
           }
+          return false;
         }
       }
-      if(SubOperator *sub = dyn_cast<SubOperator>(&I)) 
+      if (SubOperator *sub = dyn_cast<SubOperator>(&I))
       {
         // Controllo se l'operando 0 è una costante
-        // Effettuiamo controllo solo sul secondo operando dato che se la costante fosse 
+        // Effettuiamo controllo solo sul secondo operando dato che se la costante fosse
         // al primo non si potrebbe effettuare l'ottimizzazione
-        if(ConstantInt *c = dyn_cast<ConstantInt>(sub->getOperand(1)))
+        if (ConstantInt *c = dyn_cast<ConstantInt>(sub->getOperand(1)))
         {
           // Reperisco istruzione successiva
           Instruction *next = I.getNextNode();
-          // Controllo se è sottrazione
-          if(AddOperator *add = dyn_cast<AddOperator>(next)) {
-            // Controllo se si verificano le condizioni per ottimizzazione
-            if(sub == add->getOperand(0) && (sub->getOperand(1) == add->getOperand(1)))
+          while (next)
+          {
+            // Controllo se è sottrazione
+            if (AddOperator *add = dyn_cast<AddOperator>(next))
             {
-              // Rimpiazziamo tutti gli usi dell'addizione
-              add->replaceAllUsesWith(sub->getOperand(0));
-              // Cancelliamo l'addizione
-              next->eraseFromParent();
-              return false;
+              // Controllo se si verificano le condizioni per ottimizzazione
+              if (sub == add->getOperand(0) && (sub->getOperand(1) == add->getOperand(1)))
+              {
+                // Rimpiazziamo tutti gli usi dell'addizione
+                add->replaceAllUsesWith(sub->getOperand(0));
+                // Cancelliamo l'addizione
+                Instruction *temp = next->getPrevNode();
+                next->eraseFromParent();
+                next = temp;
+              }
+              if (sub == add->getOperand(1) && (sub->getOperand(1) == add->getOperand(0)))
+              {
+                // Rimpiazziamo tutti gli usi dell'addizione
+                add->replaceAllUsesWith(sub->getOperand(0));
+                // Cancelliamo l'addizione
+                Instruction *temp = next->getPrevNode();
+                next->eraseFromParent();
+                next = temp;
+              }
             }
-            if(sub == add->getOperand(1) && (sub->getOperand(1) == add->getOperand(0)))
-            {
-              // Rimpiazziamo tutti gli usi dell'addizione
-              add->replaceAllUsesWith(sub->getOperand(0));
-              // Cancelliamo l'addizione
-              next->eraseFromParent();
-              return false;
-            }
+            next = next->getNextNode();
           }
+          return false;
         }
       }
       return false;
@@ -415,7 +438,7 @@ getOpts1()
                     FPM.addPass(StrRed());
                     return true;
                   }
-                  else if (Name == "multi-instruction") 
+                  else if (Name == "multi-instruction")
                   {
                     FPM.addPass(MultiInstr());
                     return true;

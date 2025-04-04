@@ -8,9 +8,11 @@ entry:
     ; Value to operate on
     %val = add i32 10, 5    ; Initialize %val = 15
 
-    %sub = sub i32 %val, 3    ; Addition
-    %add = add i32 %sub, 3    ; Subtraction
-    
+    %add = add i32 3, %val
+    %a = add i32 %val, 23
+    %sub = sub i32 %add, 3
+    %b = mul i32 %sub, 12
+    %sub2 = sub i32 %add, 3
     
     ; Multiplication by power of 2 (can be replaced with shift left)
     %mul = mul i32 %add, 15   ; Can be replaced with %val << 3
