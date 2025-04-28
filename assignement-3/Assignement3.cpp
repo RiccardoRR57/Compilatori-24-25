@@ -21,7 +21,7 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/LoopInfo.h"
-//#include "llvm/IR/Dominators.h"
+#include "llvm/IR/Dominators.h"
 
 using namespace llvm;
 
@@ -33,8 +33,19 @@ using namespace llvm;
 namespace
 {
 
+
+  // Helper function to check if an instruction is in a vector of instructions
+  bool contains(llvm::Instruction* I, std::vector<llvm::Instruction*> &V) {
+    for(auto &inst : V) {
+      if(I == inst) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
   // New PM implementation
-  struct LoopPass : PassInfoMixin<LoopPass>
+  struct LoopInvariant : PassInfoMixin<LoopInvariant>
   {
     // Main entry point, takes IR unit to run the pass on (&F) and the
     // corresponding pass manager (to be queried if need be)
@@ -50,7 +61,48 @@ namespace
     }
 
     void runOnLoop(Loop &L) {
-      
+
+      std::vector<llvm::Instruction*> loopInv = getLoopInvInstr(L);
+
+      // Print the loop invariant instructions
+      errs() << "Loop invariant instructions in loop: \n";
+      for(auto &I : loopInv) {
+        errs() << *I << "\n";
+      }
+      errs() << "\n";
+      for(Loop::block_iterator BI = L.block_begin(); BI != L.block_end(); ++BI) {
+        llvm::BasicBlock *BB = *BI;
+        for(auto &I : *BB) {
+          if(L.isLoopInvariant(&I)) {
+            errs() << "Loop invariant instruction: " << I << "\n";
+          }
+        }
+      }
+    }
+
+    std::vector<Instruction*> getLoopInvInstr(Loop &L) {
+      // LoopInvInst is the vector of loop invariant instructions
+      std::vector<Instruction*> LoopInvInst = {};
+
+      for(Loop::block_iterator BI = L.block_begin(); BI != L.block_end(); ++BI) {
+        llvm::BasicBlock *BB = *BI;
+        for(auto &I : *BB) {
+          bool isLoopInvariant = true;
+          for(auto &op : I.operands()) {
+            // Check if the operator is a constant
+            if(Instruction* inst = dyn_cast<Instruction>(op)) {
+              if(L.contains(inst->getParent()) && !contains(inst, LoopInvInst) ) {
+                isLoopInvariant = false;
+                break;
+              }
+            }
+          }
+          if(isLoopInvariant) {
+            LoopInvInst.push_back(&I);
+          }
+        }
+      }
+      return LoopInvInst;
     }
 
     // Without isRequired returning true, this pass will be skipped for functions
@@ -65,16 +117,16 @@ namespace
 //-----------------------------------------------------------------------------
 llvm::PassPluginLibraryInfo getTestPassPluginInfo()
 {
-  return {LLVM_PLUGIN_API_VERSION, "LoopPass", LLVM_VERSION_STRING,
+  return {LLVM_PLUGIN_API_VERSION, "LoopInvariant", LLVM_VERSION_STRING,
           [](PassBuilder &PB)
           {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, FunctionPassManager &FPM,
                    ArrayRef<PassBuilder::PipelineElement>)
                 {
-                  if (Name == "loop-pass")
+                  if (Name == "loop-invariant")
                   {
-                    FPM.addPass(LoopPass());
+                    FPM.addPass(LoopInvariant());
                     return true;
                   }
                   return false;
