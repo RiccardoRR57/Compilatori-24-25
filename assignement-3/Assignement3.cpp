@@ -34,6 +34,7 @@ namespace
 {
 
 
+
   // Helper function to check if an instruction is in a vector of instructions
   bool contains(llvm::Instruction* I, std::vector<llvm::Instruction*> &V) {
     for(auto &inst : V) {
@@ -52,17 +53,20 @@ namespace
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM)
     {
       LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+      DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
 
       for(auto *L : LI) {
-        runOnLoop(*L);
+        runOnLoop(*L, DT);
       }
 
       return PreservedAnalyses::all();
     }
 
-    void runOnLoop(Loop &L) {
+    void runOnLoop(Loop &L, DominatorTree &DT) {
 
       std::vector<llvm::Instruction*> loopInv = getLoopInvInstr(L);
+
+      codeMotion(L, loopInv, DT);
 
       // Print the loop invariant instructions
       errs() << "Loop invariant instructions in loop: \n";
@@ -83,6 +87,7 @@ namespace
     std::vector<Instruction*> getLoopInvInstr(Loop &L) {
       // LoopInvInst is the vector of loop invariant instructions
       std::vector<Instruction*> LoopInvInst = {};
+      // TODO ragionare se l'istruzione è una phi function cosa sta succedendo
 
       for(Loop::block_iterator BI = L.block_begin(); BI != L.block_end(); ++BI) {
         llvm::BasicBlock *BB = *BI;
@@ -92,6 +97,7 @@ namespace
             // Check if the operator is a constant
             if(Instruction* inst = dyn_cast<Instruction>(op)) {
               if(L.contains(inst->getParent()) && !contains(inst, LoopInvInst) ) {
+                // TODO qui la funzione contains non è sufficiente, potrebbe non essere nella nostra lista perchè non è stata ancora anlizzata
                 isLoopInvariant = false;
                 break;
               }
@@ -103,8 +109,28 @@ namespace
         }
       }
       return LoopInvInst;
+    } 
+
+    void codeMotion(Loop &L, std::vector<Instruction*> &loopInv, DominatorTree &DT) {
+      for(auto &I : loopInv) {
+        bool candidate = true;
+        llvm::SmallVector<BasicBlock*> ExitBlocks;
+        L.getExitBlocks(ExitBlocks);
+        for(auto &Exit : ExitBlocks) {
+          if(!DT.dominates(I->getParent(), Exit) && !isInstrDead(I, Exit)) {
+            candidate = false;
+            break;
+          }
+        }
+        // TODO spostare le itruzioni :: cazzi nostri
+      }
     }
 
+    bool isInstrDead(Instruction* I, BasicBlock* ExitBlock) {
+      // TODO metodi di basicblock per scorrere i suoi successori
+      return true;
+    }
+    
     // Without isRequired returning true, this pass will be skipped for functions
     // decorated with the optnone LLVM attribute. Note that clang -O0 decorates
     // all functions with optnone.s
