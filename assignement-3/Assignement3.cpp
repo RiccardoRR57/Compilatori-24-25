@@ -62,6 +62,15 @@ namespace
       return PreservedAnalyses::all();
     }
 
+    bool isAnalized(llvm::Instruction* I, std::vector<llvm::Instruction*> &V) {
+      for(auto &inst : V) {
+        if(I == inst) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     void runOnLoop(Loop &L, DominatorTree &DT) {
 
       std::vector<llvm::Instruction*> loopInv = getLoopInvInstr(L);
@@ -105,10 +114,19 @@ namespace
             }
             // Check if the operator is a constant
             if(Instruction* inst = dyn_cast<Instruction>(op)) {
-              if(L.contains(inst->getParent()) && !contains(inst, LoopInvInst) ) {
+              if(L.contains(inst->getParent()) && !contains(inst, LoopInvInst) && isAnalized(inst, LoopInvInst)) {
                 // TODO qui la funzione contains non è sufficiente, potrebbe non essere nella nostra lista perchè non è stata ancora anlizzata
+                // Se l'istruzione non è ancora stata analizzata, andremo nell'else if.
                 isLoopInvariant = false;
                 break;
+              }else if(!isAnalized(inst, LoopInvInst)) {
+                
+                }
+              } else {
+                // Se l'istruzione è loop invariant, la aggiungiamo alla lista
+                if(!contains(inst, LoopInvInst)) {
+                  LoopInvInst.push_back(inst);
+
               }
             }
           }
@@ -131,16 +149,17 @@ namespace
             break;
           }
         }
-        // TODO spostare le itruzioni :: cazzi nostri
+        // TODO spostare le itruzioni :: ci pensiamo noi
       }
     }
 
     bool isInstrDead(Instruction* I, BasicBlock* ExitBlock) {
-      // TODO metodi di basicblock per scorrere i suoi successori
+      // Scorro su i successori del blocco d'uscita
       for (BasicBlock *Succ : successors(ExitBlock)) {
         for (User* U : I->users()) {
+          // Casto l'uso a un'istruzione
           if (Instruction* UseInst = dyn_cast<Instruction>(U)) {
-              // Se l'uso è in un successore, l'istruzione non è morta
+              // Se hanno la stessa reaching definition allora sono la stessa istruzione, dunque non è morta.
               if (UseInst->getParent() == Succ) {
                   return false;
               }
