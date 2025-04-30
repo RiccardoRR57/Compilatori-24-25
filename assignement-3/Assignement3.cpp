@@ -88,12 +88,21 @@ namespace
       // LoopInvInst is the vector of loop invariant instructions
       std::vector<Instruction*> LoopInvInst = {};
       // TODO ragionare se l'istruzione è una phi function cosa sta succedendo
+      // L'istruzione per controllare se un'istruzione è una phi function è: 
+      llvm::<Instruction*> I;
+      isa<PHINode>(I) 
 
       for(Loop::block_iterator BI = L.block_begin(); BI != L.block_end(); ++BI) {
         llvm::BasicBlock *BB = *BI;
         for(auto &I : *BB) {
           bool isLoopInvariant = true;
           for(auto &op : I.operands()) {
+            // Le istruzioni come branch e return non sono loop invariant per definizione
+            // dato che alterando il control flow spostandole farebbero perdere di senso il programma
+            // e dobbiamo controllare che non vengano inserite nel nostro vettore di istruzioni loop invariant
+            if (I.isTerminator() || I.mayHaveSideEffects()) {
+              continue;
+            }
             // Check if the operator is a constant
             if(Instruction* inst = dyn_cast<Instruction>(op)) {
               if(L.contains(inst->getParent()) && !contains(inst, LoopInvInst) ) {
@@ -128,6 +137,16 @@ namespace
 
     bool isInstrDead(Instruction* I, BasicBlock* ExitBlock) {
       // TODO metodi di basicblock per scorrere i suoi successori
+      for (BasicBlock *Succ : successors(ExitBlock)) {
+        for (User* U : I->users()) {
+          if (Instruction* UseInst = dyn_cast<Instruction>(U)) {
+              // Se l'uso è in un successore, l'istruzione non è morta
+              if (UseInst->getParent() == Succ) {
+                  return false;
+              }
+          }
+      }
+    }
       return true;
     }
     
