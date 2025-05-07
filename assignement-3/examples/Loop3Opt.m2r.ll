@@ -5,41 +5,43 @@ target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: noinline nounwind sspstrong uwtable
 define dso_local i32 @main() #0 {
-  %1 = add nsw i32 10, 5
-  br label %2
+  br label %1
 
-2:                                                ; preds = %14, %0
-  %.01 = phi i32 [ 0, %0 ], [ %1, %14 ]
+1:                                                ; preds = %14, %0
+  %.01 = phi i32 [ 0, %0 ], [ %9, %14 ]
   %.0 = phi i32 [ 0, %0 ], [ %15, %14 ]
-  %3 = icmp slt i32 %.0, 10
-  br i1 %3, label %4, label %16
+  %2 = icmp slt i32 %.0, 10
+  br i1 %2, label %3, label %16
 
-4:                                                ; preds = %2
-  %5 = icmp slt i32 %.0, 5
-  br i1 %5, label %6, label %9
+3:                                                ; preds = %1
+  %4 = icmp slt i32 %.0, 5
+  br i1 %4, label %5, label %8
 
-6:                                                ; preds = %4
-  %7 = mul nsw i32 %.0, 2
-  %8 = add nsw i32 %.01, %.0
+5:                                                ; preds = %3
+  %6 = mul nsw i32 %.0, 2
+  %7 = add nsw i32 %.01, %.0
   br label %16
 
-9:                                                ; preds = %4
+8:                                                ; preds = %3
+  %9 = add nsw i32 10, 5
   %10 = icmp sgt i32 %.0, 5
   br i1 %10, label %11, label %13
 
-11:                                               ; preds = %9
-  %12 = add nsw i32 %1, 1
+11:                                               ; preds = %8
+  %12 = add nsw i32 %9, 1
   br label %16
 
-13:                                               ; preds = %9
+13:                                               ; preds = %8
   br label %14
 
 14:                                               ; preds = %13
   %15 = add nsw i32 %.0, 1
-  br label %2, !llvm.loop !6
+  br label %1, !llvm.loop !6
 
-16:                                               ; preds = %11, %6, %2
-  %.02 = phi i32 [ %8, %6 ], [ 0, %11 ], [ 0, %2 ]
+16:                                               ; preds = %11, %5, %1
+  %.02 = phi i32 [ %7, %5 ], [ 0, %11 ], [ 0, %1 ]
+  %.1 = phi i32 [ %.01, %5 ], [ %9, %11 ], [ %.01, %1 ]
+  %17 = add nsw i32 12, %.1
   ret i32 %.02
 }
 

@@ -95,9 +95,35 @@ namespace
       return true;
     }
 
-    void codeMotion(Loop &L, std::vector<Instruction*> &loopInv, DominatorTree &DT) {
-      BasicBlock *PH = L.getLoopPreheader();
+    void moveInstruction(Instruction &I, Loop &L) {
+      // Caso Base
+      // Dato che iteriamo ricorsivamente (possibilmente anche 2 volte su un operando)
+      // controlliamo di non averlo già spostato in precedenza, in caso affermativo terminiamo la funzione.
+      if(!L.contains(I.getParent())) {
+        return;
+      }
+      BasicBlock* PH = L.getLoopPreheader();
+      
+      if(Instruction* op0 = dyn_cast<Instruction>(I.getOperand(0))) {
+        if(L.contains(op0->getParent())) {
+          // Nel caso in cui l'istruzione che analizziamo dipenda da un suo operando
+          // chiamiamo ricorsivamente la funzione sull'operando per spostarlo prima.
+          moveInstruction(*op0, L);
+        }
+      }
 
+      if(Instruction* op1 = dyn_cast<Instruction>(I.getOperand(1))) {
+        if(L.contains(op1->getParent())) {
+          moveInstruction(*op1, L);
+        }
+      }
+      // Qualora si possa procedere senza conflitti di dipendenze da altre istruzioni andiamo a spostare prima del termine del pre header 
+      // tramite l'apposita funzione.
+      I.moveBefore(PH->getTerminator());
+      return;
+    }
+
+    void codeMotion(Loop &L, std::vector<Instruction*> &loopInv, DominatorTree &DT) {
       for(auto &I : loopInv) {
         outs()<< "Sto analizzando l'istruzione: " << *I << '\n';
         bool candidate = true;
@@ -113,7 +139,7 @@ namespace
         }
 
         if(candidate) {
-          I->moveBefore(PH->getTerminator());
+          moveInstruction(*I, L);
           outs() << "Moved instruction: " << *I << "\n";
         }
       }

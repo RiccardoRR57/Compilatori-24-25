@@ -25,7 +25,10 @@ int main()
             break;
         }
     }
-    
+    int saicheabbiamosolounpianoA = 12;
+    int zpoilaxipsilon = saicheabbiamosolounpianoA + invariant;
+    int EfaccioLONGANGperchesiamolONGANG = 1;
+    int CredoSoloInMeStoConBrownFaccioGang = 0;
 
     return result;
 }

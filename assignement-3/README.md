@@ -15,16 +15,23 @@ L'ottimizzazione è implementata attraverso due fasi principali:
 
 1. **Identificazione delle istruzioni invarianti**
    - Un'istruzione è loop-invariant se:
-     - È una costante
-     - Tutti i suoi operandi sono costanti o loop-invariant
-     - Non ha effetti collaterali
+     - É una Binary Operation
+     - Tutti i suoi operandi sono costanti 
      - Non dipende da istruzioni all'interno del loop
+     - I suoi operandi sono istruzioni loop invariant a loro volta
 
-2. **Code Motion**
+2. **Controllo possibile Code Motion**
+  - Un'istruzione è candidata alla Code Motion se:
+    - É loop-invariant
+    - Domina tutte le uscite del loop oppure è morta nelle uscite che non domina
+
+
+3. **Code Motion**
    - Le istruzioni identificate come invarianti vengono spostate:
-     - Fuori dal loop
-     - In un punto dominatore del loop
-     - Prima dell'ingresso nel loop
+     - Nel Pre header del loop
+
+La fase di Code Motion prevede lo spostamento delle istruzioni candidate nell'ordine corretto mantenendo il control flow del programma inalterato. 
+Per assicurarci che questo sia possibile andiamo a iterare sulle istruzioni candidate alla Code Motion, e se questa ha come operandi delle istruzioni interne al loop andremo a richiamare su di essi ricorsivamente la funzione che si occupa dello spostamento delle istruzioni. Per far sì che inoltre non si anilizzino più volte le stesse istruzioni abbiamo aggiunto un controllo preliminare, dove se l'istruzione analizzata è già stata spostata fuori dal loop terminiamo la funzione.
 
 ## Utilizzo
 
@@ -37,12 +44,11 @@ cmake -DLT_LLVM_INSTALL_DIR=$LLVM_DIR ..
 make
 
 # Esecuzione dell'ottimizzazione
-opt -load-pass-plugin=lib/libAssignement3.so -passes="loop-invariant" input.ll -o output.ll
+cd ../examples
+opt -load-pass-plugin=../build/libAssignement3.so -passes="loop-invariant" input.ll -o output.ll
 ```
 
 ## Test
 
 La cartella `examples/` contiene alcuni file di test per verificare il corretto funzionamento dell'ottimizzazione:
 
-- `Loop2.c`: Esempio base con calcolo costante nel loop
-- `Loop.c`: Esempio con variabile globale e funzione di incremento
