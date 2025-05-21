@@ -33,9 +33,9 @@ endif()
 #===============================================================================
 # 3. ADD THE TARGET
 #===============================================================================
-add_library(Assignement3 SHARED Assignement3.cpp)
+add_library(Assignement4 SHARED Assignement4.cpp)
 
 # Allow undefined symbols in shared objects on Darwin (this is the default
 # behaviour on Linux)
-target_link_libraries(Assignement3
+target_link_libraries(Assignement4
   "$<$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>")

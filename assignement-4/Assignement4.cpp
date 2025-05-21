@@ -22,6 +22,9 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/Analysis/PostDominators.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/DependenceAnalysis.h"
 
 using namespace llvm;
 
@@ -33,129 +36,138 @@ using namespace llvm;
 namespace
 {
   // New PM implementation
-  struct LoopInvariant : PassInfoMixin<LoopInvariant>
+  struct LoopFusion1 : PassInfoMixin<LoopFusion1>
   {
-    bool isLoopInv(BinaryOperator &I, Loop &L) {
-      Value* firstOp = I.getOperand(0);
-      Value* secondOp = I.getOperand(1);
-      
-      bool firstOpLI = false;
-      bool secondOpLI = false;
-
-      if(dyn_cast<Constant>(firstOp)) firstOpLI = true;
-      if(Instruction* inst = dyn_cast<Instruction>(firstOp)) {
-        if(!L.contains(inst->getParent())) firstOpLI = true;
-        if(BinaryOperator* binOp = dyn_cast<BinaryOperator>(inst)) firstOpLI = isLoopInv(*binOp, L);
-      }
-      
-      if(dyn_cast<Constant>(secondOp)) secondOpLI = true;
-      if(Instruction* inst = dyn_cast<Instruction>(secondOp)) {
-        if(!L.contains(inst->getParent())) secondOpLI = true;
-        if(BinaryOperator* binOp = dyn_cast<BinaryOperator>(inst)) secondOpLI = isLoopInv(*binOp, L);
-      }
-
-      return firstOpLI && secondOpLI;
-    }
-
-    std::vector<Instruction*> getLoopInvInstr(Loop &L) {
-      // LoopInvInst is the vector of loop invariant instructions
-      std::vector<Instruction*> LoopInvInst = {};
-      // TODO ragionare se l'istruzione è una phi function cosa sta succedendo
-      // L'istruzione per controllare se un'istruzione è una phi function è: 
-      //llvm::<Instruction*> I;
-      //isa<PHINode>(I) 
-
-      for(Loop::block_iterator BI = L.block_begin(); BI != L.block_end(); ++BI) {
-        llvm::BasicBlock *BB = *BI;
-        for(auto &I : *BB) {
-          if(BinaryOperator *binOp = dyn_cast<BinaryOperator>(&I)) {
-            if(isLoopInv(*binOp, L)) {
-              LoopInvInst.push_back(&I);
-            }
-          }
-        }
-      }
-      return LoopInvInst;
-    } 
-
-
-    bool isInstrDead(Instruction* I, BasicBlock* ExitBlock) {
-      // Scorro su i successori del blocco d'uscita
-      for (BasicBlock *Succ : successors(ExitBlock)) {
-        for (User* U : I->users()) {
-          // Casto l'uso a un'istruzione
-          if (Instruction* UseInst = dyn_cast<Instruction>(U)) {
-            // Se hanno la stessa reaching definition allora sono la stessa istruzione, dunque non è morta.
-            if (UseInst->getParent() == Succ) {
-                return false;
-            }
-          }
-        }
-      }
-      return true;
-    }
-
-    void moveInstruction(Instruction &I, Loop &L) {
-      // Caso Base
-      // Dato che iteriamo ricorsivamente (possibilmente anche 2 volte su un operando)
-      // controlliamo di non averlo già spostato in precedenza, in caso affermativo terminiamo la funzione.
-      if(!L.contains(I.getParent())) {
-        return;
-      }
-      BasicBlock* PH = L.getLoopPreheader();
-      
-      if(Instruction* op0 = dyn_cast<Instruction>(I.getOperand(0))) {
-        if(L.contains(op0->getParent())) {
-          // Nel caso in cui l'istruzione che analizziamo dipenda da un suo operando
-          // chiamiamo ricorsivamente la funzione sull'operando per spostarlo prima.
-          moveInstruction(*op0, L);
-        }
-      }
-
-      if(Instruction* op1 = dyn_cast<Instruction>(I.getOperand(1))) {
-        if(L.contains(op1->getParent())) {
-          moveInstruction(*op1, L);
-        }
-      }
-      // Qualora si possa procedere senza conflitti di dipendenze da altre istruzioni andiamo a spostare prima del termine del pre header 
-      // tramite l'apposita funzione.
-      I.moveBefore(PH->getTerminator());
-      return;
-    }
-
-    void codeMotion(Loop &L, std::vector<Instruction*> &loopInv, DominatorTree &DT) {
-      for(auto &I : loopInv) {
-        outs()<< "Sto analizzando l'istruzione: " << *I << '\n';
-        bool candidate = true;
-        llvm::SmallVector<BasicBlock*> ExitBlocks;
-        L.getExitBlocks(ExitBlocks);
-        for(auto &Exit : ExitBlocks) {
-          if(!DT.dominates(I->getParent(), Exit)) outs() << "L'istruzione non domina l'uscita del loop\n";
-          if(!isInstrDead(I,Exit)) outs() << "L'istruzione non è dead\n";
-          if(!DT.dominates(I->getParent(), Exit) && !isInstrDead(I, Exit)) {
-            candidate = false;
-            break;
-          }
-        }
-
-        if(candidate) {
-          moveInstruction(*I, L);
-          outs() << "Moved instruction: " << *I << "\n";
-        }
-      }
-    }
-
     void runOnLoop(Loop &L, DominatorTree &DT) {
 
-      std::vector<llvm::Instruction*> loopInv = getLoopInvInstr(L);
+    }
 
-      codeMotion(L, loopInv, DT);
+    /**
+     * Ritorna true se i due loop sono adiacenti
+     * false se non sono adiacenti oppure il primo ha più uscite
+     * 
+     */
+    bool areAdjacent(Loop* L1, Loop* L2) {
+      outs() << "Controllo se i loop sono adiacenti\n";
+      //La funzione getExitBlock ritorna non null solamente se vi è una sola uscita, in caso contario ritorna null.
+      BasicBlock* ExitL1 = L1->getExitBlock();
+      BasicBlock* EntryL2;
 
-      // Print the loop invariant instructions
-      errs() << "Loop invariant instructions in loop: \n";
-      for(auto &I : loopInv) {
-        errs() << *I << "\n";
+      if(L2->isGuarded()){ 
+        // Prendiamo il branch del guard del Loop in caso sia guarded e poi prendiamo il BB tramite getParent().
+        EntryL2 = L2->getLoopGuardBranch()->getParent()->getPrevNode();
+      } else {
+        //Altrimenti prendiamo il preheader del loop come entry block.
+        EntryL2 = L2->getLoopPreheader();  
       }
+      return EntryL2 == ExitL1;
+    }
+    /**
+     * Ritrona true se i due loop sono CFG equivalenti
+     * false se non sono CFG equivalenti
+     *  
+     */
+    bool areCFGEquivalent(Loop* L1, Loop* L2, DominatorTree &DT, PostDominatorTree &PDT) {
+
+      // Istanziamo due BasickBlock che nel caso in cui non siano guarded diventeranno
+      // l'header del loop mentre nel caso opposto saranno i BB contenenti il branch del guard.
+      BasicBlock* BlockL1;
+      BasicBlock* BlockL2;
+
+      // Controlliamo se entrambi i loop sono guarder, evitiamo il controllo su guardia 
+      // singola in quanto questo caso preclude l'ipotesi di CFG equivalenza
+      if(L1->isGuarded() && L2->isGuarded()) {
+        outs() << "Entrambi i loop sono guarded\n";
+        // Controlliamo se entrambe le condizioni delle guardie sono uguali
+        // In caso contrario non verrà rispettata la proprietà di CFG equivalenza
+        if(L1->getLoopGuardBranch()->isSameOperationAs(L2->getLoopGuardBranch())) {
+          outs() << "La condizione è uguale\n";
+          BlockL1 = L1->getLoopGuardBranch()->getParent();
+          BlockL2 = L2->getLoopGuardBranch()->getParent();
+        }
+        else {
+          outs() << "La condizione è diversa\n";
+          return false;
+        }
+      }
+      // Se entrambi non sono guarded allora possiamo assegnare a BlockL1 e BlockL2
+      // l'header del loop rispettivo e procedere al controllo della dominanza.
+      else if(!L1->isGuarded() && !L2->isGuarded()) {
+        outs() << "Entrambi i loop non sono guarded\n";
+        BlockL1 = L1->getHeader();
+        BlockL2 = L2->getHeader();
+      }
+      if(DT.dominates(BlockL1, BlockL2)) {
+        outs() << "Il primo loop domina il secondo\n";
+      }
+      if(PDT.dominates(BlockL2, BlockL1)) {
+        outs() << "Il secondo loop domina il primo\n";
+      }
+      return DT.dominates(BlockL1, BlockL2) && PDT.dominates(BlockL2, BlockL1);
+    }
+
+    bool sameIterationNumber(Loop* L1, Loop* L2, ScalarEvolution* SE) {
+
+      // Numero di iterazioni del loop1 (0 se indefinito)
+      unsigned int L1TripCount = SE->getSmallConstantTripCount(L1);
+      // Numero di iterazioni del loop2 (0 se indefinito)
+      unsigned int L2TripCount = SE->getSmallConstantTripCount(L2);
+      
+      // Se almeno uno dei due trip count non è calcolabile ritorniamo false
+      if(L1TripCount == 0 || L2TripCount == 0) {
+        outs() << "Almeno un trip count non è calcolabile\n";
+        return false;
+      }
+      
+      if(L1TripCount == L2TripCount) {
+        return true;
+      }
+
+      return false;
+    }
+
+    bool hasDependence(Loop* L1, Loop* L2, DependenceInfo* DI) {
+      
+      
+      for(auto* BB : L1->blocks()) {
+        for(auto I = BB->begin(); I != BB->end(); ++I) {
+          if(StoreInst *store = dyn_cast<StoreInst>(I)) {
+
+            outs() << "trovata una store: " << *store << '\n';
+            // Ricavo L'istruzione usata come operando dalla store
+            Instruction* getElemPtrS = dyn_cast<Instruction>(store->getOperand(1));
+            // Ricavo base address e offSerT.
+            Value* baseS = getElemPtrS->getOperand(0);
+            Value* offsetS = getElemPtrS->getOperand(2);
+            outs() << "base: " << *baseS << "\n";
+            outs() << "offset" << *offsetS << "\n";
+            outs() << "-----------------------------------------" << "\n";
+
+            for(auto* BB : L2->blocks()) {
+              for(auto I = BB->begin(); I != BB->end(); ++I) {
+                if(LoadInst *load = dyn_cast<LoadInst>(I)) {
+                  outs() << "trovata una load: " << *load << '\n';
+                  // Ricavo L'istruzione usata come operando dalla load
+                  Instruction* getElemPtrL = dyn_cast<Instruction>(load->getOperand(0));
+                  Value* baseL = getElemPtrL->getOperand(0);
+                  Value* offsetL = getElemPtrL->getOperand(2);
+                  outs() << "base: " << *baseL << "\n";
+                  outs() << "offset" << *offsetL << "\n";
+
+                  if(baseS == baseL) {
+                    outs() << "La store e la load si riferiscono allo stesso array\n";
+                    Dependence* dep = DI->depends(load, store, true).release();
+                    SCEV *storeSCEV = S
+                  }
+                }
+              }
+            }
+      
+          }
+        }
+      }
+    
+      return false;
     }
 
     // Main entry point, takes IR unit to run the pass on (&F) and the
@@ -164,14 +176,65 @@ namespace
     {
       LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
       DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+      PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+      ScalarEvolution &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+      DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);
 
-      for(auto *L : LI) {
-        runOnLoop(*L, DT);
+      //Sapendo che i lo
+      // op sono solo due, prendo i primi due
+      std::vector<Loop*> Loops = LI.getTopLevelLoops();
+      if(Loops.size() < 2) {
+        outs() << "Non ci sono abbastanza loop\n";
+        return PreservedAnalyses::all();
+      }
+      Loop* L1 = Loops[1];
+      Loop* L2 = Loops[0];
+      
+      outs() << "INIZIO CONTROLLO DI ADIACENZA" << "\n";
+      outs() << "-----------------------------------------" << "\n";
+
+      if(areAdjacent(L1, L2)) {
+        outs() << "I loop sono adiacenti\n";
+      } else {
+        outs() << "I loop non sono adiacenti\n";
       }
 
+      outs() << "INIZIO CONTROLLO DI CFG EQUIVALENZA" << "\n";
+      outs() << "-----------------------------------------" << "\n";
+      
+      if(areCFGEquivalent(L1,L2, DT, PDT)) {
+        outs() << "I loop sono CFG equivalenti\n";
+      } else {
+        outs() << "I loop non sono CFG equivalenti\n";
+      } 
+
+      outs() << "INIZIO CONTROLLO SUL NUMERO DI ITERAZIONI" << "\n";
+      outs() << "-----------------------------------------" << "\n";
+
+      if(sameIterationNumber(L1,L2,&SE)){
+        outs() << "I loop hanno lo stesso numero di iterazioni\n";
+      } else {
+        outs() << "I loop non hanno lo stesso numero di iterazioni\n";
+      }
+
+      outs() << "INIZIO CONTROLLO SULLE DIPENDENZE A DISTANZA NEGATIVA" << "\n";
+      outs() << "-----------------------------------------" << "\n";
+
+      if(hasDependence(L1,L2,&DI)) {
+        outs() << "I loop hanno dipendenze\n";
+      } else {
+        outs() << "I loop non hanno dipendenze\n";
+      }
+
+      outs() << "-----------------------------------------" << "\n";
+
+      
+
+
+      
       return PreservedAnalyses::all();
     }
-    
+  
     // Without isRequired returning true, this pass will be skipped for functions
     // decorated with the optnone LLVM attribute. Note that clang -O0 decorates
     // all functions with optnone.s
@@ -184,16 +247,16 @@ namespace
 //-----------------------------------------------------------------------------
 llvm::PassPluginLibraryInfo getTestPassPluginInfo()
 {
-  return {LLVM_PLUGIN_API_VERSION, "LoopInvariant", LLVM_VERSION_STRING,
+  return {LLVM_PLUGIN_API_VERSION, "LoopFusion1", LLVM_VERSION_STRING,
           [](PassBuilder &PB)
           {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, FunctionPassManager &FPM,
                    ArrayRef<PassBuilder::PipelineElement>)
                 {
-                  if (Name == "loop-invariant")
+                  if (Name == "loop-fusion1") 
                   {
-                    FPM.addPass(LoopInvariant());
+                    FPM.addPass(LoopFusion1());
                     return true;
                   }
                   return false;
