@@ -8,35 +8,41 @@ define dso_local i32 @main() #0 {
   %1 = alloca [10 x i32], align 16
   br label %2
 
-2:                                                ; preds = %7, %0
-  %.01 = phi i32 [ 0, %0 ], [ %6, %7 ]
-  %3 = mul nsw i32 2, %.01
-  %4 = sext i32 %.01 to i64
-  %5 = getelementptr inbounds [10 x i32], ptr %1, i64 0, i64 %4
-  store i32 %3, ptr %5, align 4
-  %6 = add nsw i32 %.01, 1
-  br label %7
+2:                                                ; preds = %8, %0
+  %.01 = phi i32 [ 0, %0 ], [ %9, %8 ]
+  %3 = icmp slt i32 %.01, 10
+  br i1 %3, label %4, label %10
 
-7:                                                ; preds = %2
-  %8 = icmp slt i32 %6, 10
-  br i1 %8, label %2, label %9, !llvm.loop !6
+4:                                                ; preds = %2
+  %5 = mul nsw i32 %.01, 2
+  %6 = sext i32 %.01 to i64
+  %7 = getelementptr inbounds [10 x i32], ptr %1, i64 0, i64 %6
+  store i32 %5, ptr %7, align 4
+  br label %8
 
-9:                                                ; preds = %7
-  br label %10
+8:                                                ; preds = %4
+  %9 = add nsw i32 %.01, 1
+  br label %2, !llvm.loop !6
 
-10:                                               ; preds = %15, %9
-  %.0 = phi i32 [ 0, %9 ], [ %14, %15 ]
-  %11 = sext i32 %.0 to i64
-  %12 = getelementptr inbounds [10 x i32], ptr %1, i64 0, i64 %11
-  %13 = load i32, ptr %12, align 4
-  %14 = add nsw i32 %.0, 1
-  br label %15
+10:                                               ; preds = %2
+  br label %11
 
-15:                                               ; preds = %10
-  %16 = icmp slt i32 %14, 10
-  br i1 %16, label %10, label %17, !llvm.loop !8
+11:                                               ; preds = %17, %10
+  %.0 = phi i32 [ 0, %10 ], [ %18, %17 ]
+  %12 = icmp slt i32 %.0, 10
+  br i1 %12, label %13, label %19
 
-17:                                               ; preds = %15
+13:                                               ; preds = %11
+  %14 = sext i32 %.0 to i64
+  %15 = getelementptr inbounds [10 x i32], ptr %1, i64 0, i64 %14
+  %16 = load i32, ptr %15, align 4
+  br label %17
+
+17:                                               ; preds = %13
+  %18 = add nsw i32 %.0, 1
+  br label %11, !llvm.loop !8
+
+19:                                               ; preds = %11
   ret i32 0
 }
 

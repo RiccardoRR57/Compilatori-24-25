@@ -124,13 +124,16 @@ namespace
       }
 
       return false;
+      
     }
 
-    bool hasDependence(Loop* L1, Loop* L2, DependenceInfo* DI) {
+    bool hasDependence(Loop* L1, Loop* L2, DependenceInfo* DI, ScalarEvolution* SE) {
       
-      
+      // Scorro i basic block del loop1
       for(auto* BB : L1->blocks()) {
+        // Scorro le istruzioni del loop1
         for(auto I = BB->begin(); I != BB->end(); ++I) {
+          // Controllo solamnete le istruzioni interessate
           if(StoreInst *store = dyn_cast<StoreInst>(I)) {
 
             outs() << "trovata una store: " << *store << '\n';
@@ -143,8 +146,11 @@ namespace
             outs() << "offset" << *offsetS << "\n";
             outs() << "-----------------------------------------" << "\n";
 
+            // Scorro i basic block del loop2
             for(auto* BB : L2->blocks()) {
+              // Scorro le istruzioni del loop2
               for(auto I = BB->begin(); I != BB->end(); ++I) {
+                // Controllo solamnete le istruzioni interessate
                 if(LoadInst *load = dyn_cast<LoadInst>(I)) {
                   outs() << "trovata una load: " << *load << '\n';
                   // Ricavo L'istruzione usata come operando dalla load
@@ -154,15 +160,49 @@ namespace
                   outs() << "base: " << *baseL << "\n";
                   outs() << "offset" << *offsetL << "\n";
 
+                  // Controllo se hanno la stessa base
                   if(baseS == baseL) {
                     outs() << "La store e la load si riferiscono allo stesso array\n";
-                    Dependence* dep = DI->depends(load, store, true).release();
-                    SCEV *storeSCEV = S
+
+                    Dependence *dep = DI->depends(store, load, true).release();
+    
+                    if(dep) {
+                      outs()<< dep->getDistance(0)<< "\n";
+
+                      return true;
+                    }else {
+                      return false;
+                    }
+
+
+
+/*
+                    // Calcolo la scalar evolution di load store e la differenza tra queste
+                    const SCEV* storeSCEV = SE->getSCEV(offsetS);
+                    outs()<< *storeSCEV << "calcolo offset store \n";
+                    const SCEV* loadSCEV = SE->getSCEV(offsetL);
+                    outs() << *loadSCEV << "calcolo offset load \n";
+                    const SCEV* diff = SE->getMinusSCEV(storeSCEV, loadSCEV);
+                    outs() << *diff << "calcolo diff \n";
+                    
+                    SE->
+
+                    // Calcolo la distanza di dipendenza
+                    outs() << "differenza: " << SE->getUnsignedRange(diff) << '\n';
+                    if(SE->getUnsignedRangeMin(diff).isNegative())
+                    
+                    {
+                      outs() << "Dipendenze a distanza sconosciuta o negativa\n";
+                      return true;
+                    }
+*/
+
+
+
                   }
                 }
               }
             }
-      
           }
         }
       }
@@ -194,36 +234,36 @@ namespace
       outs() << "-----------------------------------------" << "\n";
 
       if(areAdjacent(L1, L2)) {
-        outs() << "I loop sono adiacenti\n";
+        outs() << "I loop sono adiacenti\n \n";
       } else {
-        outs() << "I loop non sono adiacenti\n";
+        outs() << "I loop non sono adiacenti\n \n";
       }
 
       outs() << "INIZIO CONTROLLO DI CFG EQUIVALENZA" << "\n";
       outs() << "-----------------------------------------" << "\n";
       
       if(areCFGEquivalent(L1,L2, DT, PDT)) {
-        outs() << "I loop sono CFG equivalenti\n";
+        outs() << "I loop sono CFG equivalenti\n\n";
       } else {
-        outs() << "I loop non sono CFG equivalenti\n";
+        outs() << "I loop non sono CFG equivalenti\n\n";
       } 
 
       outs() << "INIZIO CONTROLLO SUL NUMERO DI ITERAZIONI" << "\n";
       outs() << "-----------------------------------------" << "\n";
 
       if(sameIterationNumber(L1,L2,&SE)){
-        outs() << "I loop hanno lo stesso numero di iterazioni\n";
+        outs() << "I loop hanno lo stesso numero di iterazioni\n\n";
       } else {
-        outs() << "I loop non hanno lo stesso numero di iterazioni\n";
+        outs() << "I loop non hanno lo stesso numero di iterazioni\n\n";
       }
 
       outs() << "INIZIO CONTROLLO SULLE DIPENDENZE A DISTANZA NEGATIVA" << "\n";
       outs() << "-----------------------------------------" << "\n";
 
-      if(hasDependence(L1,L2,&DI)) {
-        outs() << "I loop hanno dipendenze\n";
+      if(hasDependence(L1, L2, &DI, &SE)) {
+        outs() << "I loop hanno dipendenze\n\n";
       } else {
-        outs() << "I loop non hanno dipendenze\n";
+        outs() << "I loop non hanno dipendenze\n\n";
       }
 
       outs() << "-----------------------------------------" << "\n";
