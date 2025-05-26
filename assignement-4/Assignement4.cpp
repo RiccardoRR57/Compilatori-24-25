@@ -166,13 +166,7 @@ namespace
 
                     Dependence *dep = DI->depends(store, load, true).release();
     
-                    if(dep) {
-                      outs()<< dep->getDistance(0)<< "\n";
-
-                      return true;
-                    }else {
-                      return false;
-                    }
+                    return dep;
 
 
 
@@ -199,6 +193,7 @@ namespace
 
 
 
+
                   }
                 }
               }
@@ -208,6 +203,83 @@ namespace
       }
     
       return false;
+    }
+
+    void fuseLoops(Loop* L1, Loop* L2) {
+      // Sostituisco gli usi della induction variable del secondo loop con la prima induction variable
+      PHINode* IV1 = L1->getCanonicalInductionVariable();
+      PHINode* IV2 = L2->getCanonicalInductionVariable();
+      IV2->replaceAllUsesWith(IV1);
+
+      BasicBlock* Exit1 = L1->getExitBlock();
+      BasicBlock* Header1 = L1->getHeader();
+      BasicBlock* Latch1 = L1->getLoopLatch();
+      BasicBlock* BodyLast1 = Latch1->getSinglePredecessor();
+      
+      BasicBlock* Exit2 = L2->getExitBlock();
+      BasicBlock* Latch2 = L2->getLoopLatch();
+      BasicBlock* Header2 = L2->getHeader();
+      BasicBlock* BodyLast2 = Latch2->getSinglePredecessor();
+      BasicBlock* PreHead2 = L2->getLoopPreheader();
+      // Iteriamo sui succesori dell'header del secondo loop e 
+      // se questo non è l'uscita del secondo loop è il primo blocco del 
+      // corpo del secondo loop.
+      BasicBlock* BodyFirst2;
+      for(auto succ = succ_begin(Header2); succ != succ_end(Header2); succ++) {
+        BasicBlock* succBB = *succ;
+        if(succBB != Exit2) {
+          BodyFirst2 = succBB;
+        }
+      }
+
+      
+      outs() << "Inizio modifica dei branch per la fusione dei loop\n";
+
+      BranchInst* brHeader1 = dyn_cast<BranchInst>(Header1->getTerminator());
+      outs() << "Analizzo terminatore di Header1: " << Header1->getName() << "\n";
+      if(brHeader1->isConditional()){
+        outs() << "Header1 ha un branch condizionale\n";
+        if(brHeader1->getSuccessor(0) == PreHead2) {
+          outs() << "Successore 0 di Header1 è PreHead2, lo sostituisco con Exit2\n";
+          brHeader1->setSuccessor(0, Exit2);
+        }
+        if(brHeader1->getSuccessor(1) == PreHead2) {
+          outs() << "Successore 1 di Header1 è PreHead2, lo sostituisco con Exit2\n";
+          brHeader1->setSuccessor(1, Exit2);
+        }
+      }
+
+      BranchInst* brBody1 = dyn_cast<BranchInst>(BodyLast1->getTerminator());
+      outs() << "Analizzo terminatore di BodyLast1: " << BodyLast1->getName() << "\n";
+      if(!brBody1->isConditional()){
+        outs() << "BodyLast1 ha un branch non condizionale\n";
+        if(brBody1->getSuccessor(0) == Latch1) {
+          outs() << "Successore 0 di BodyLast1 è Latch1, lo sostituisco con BodyFirst2\n";
+          brBody1->setSuccessor(0, BodyFirst2);
+        }
+      }
+
+      BranchInst* brBody2 = dyn_cast<BranchInst>(BodyLast2->getTerminator());
+      outs() << "Analizzo terminatore di BodyLast2: " << BodyLast2->getName() << "\n";
+      if(!brBody2->isConditional()){
+        outs() << "BodyLast2 ha un branch non condizionale\n";
+        if(brBody2->getSuccessor(0) == Latch2) {
+          outs() << "Successore 0 di BodyLast2 è Latch2, lo sostituisco con Latch1\n";
+          brBody2->setSuccessor(0, Latch1);
+        }
+      }
+
+      BranchInst* brHeader2 = dyn_cast<BranchInst>(Header2->getTerminator());
+      outs() << "Analizzo terminatore di Header1 (per Header2): " << Header2->getName() << "\n";
+      if(brHeader2->isConditional()){
+        outs() << "Header1 ha un branch condizionale (per Header2), imposto entrambi i successori a Latch2\n";
+        brHeader2->setSuccessor(0, Latch2);
+        brHeader2->setSuccessor(1, Latch2);
+      }
+
+      outs() << "Modifica dei branch completata\n";
+      
+      return;
     }
 
     // Main entry point, takes IR unit to run the pass on (&F) and the
@@ -268,10 +340,15 @@ namespace
 
       outs() << "-----------------------------------------" << "\n";
 
+      outs() << "INIZIO FUSIONE DEI LOOP" << "\n";
+      outs() << "-----------------------------------------" << "\n\n";
+
+      fuseLoops(L1, L2);
+      outs() << "Fusione completata\n";
+      outs() << "-----------------------------------------" << "\n";
+      
       
 
-
-      
       return PreservedAnalyses::all();
     }
   
