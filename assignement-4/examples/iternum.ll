@@ -5,7 +5,7 @@ target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: noinline nounwind sspstrong uwtable
 define dso_local i32 @main() #0 {
-  %1 = alloca [10 x i32], align 16
+  %1 = alloca [11 x i32], align 16
   br label %2
 
 2:                                                ; preds = %8, %0
@@ -16,7 +16,7 @@ define dso_local i32 @main() #0 {
 4:                                                ; preds = %2
   %5 = mul nsw i32 %.01, 2
   %6 = sext i32 %.01 to i64
-  %7 = getelementptr inbounds [10 x i32], ptr %1, i64 0, i64 %6
+  %7 = getelementptr inbounds [11 x i32], ptr %1, i64 0, i64 %6
   store i32 %5, ptr %7, align 4
   br label %8
 
@@ -27,22 +27,23 @@ define dso_local i32 @main() #0 {
 10:                                               ; preds = %2
   br label %11
 
-11:                                               ; preds = %17, %10
-  %.0 = phi i32 [ 0, %10 ], [ %18, %17 ]
+11:                                               ; preds = %18, %10
+  %.0 = phi i32 [ 0, %10 ], [ %19, %18 ]
   %12 = icmp slt i32 %.0, 10
-  br i1 %12, label %13, label %19
+  br i1 %12, label %13, label %20
 
 13:                                               ; preds = %11
-  %14 = sext i32 %.0 to i64
-  %15 = getelementptr inbounds [10 x i32], ptr %1, i64 0, i64 %14
-  %16 = load i32, ptr %15, align 4
-  br label %17
+  %14 = add nsw i32 %.0, 1
+  %15 = sext i32 %14 to i64
+  %16 = getelementptr inbounds [11 x i32], ptr %1, i64 0, i64 %15
+  %17 = load i32, ptr %16, align 4
+  br label %18
 
-17:                                               ; preds = %13
-  %18 = add nsw i32 %.0, 1
+18:                                               ; preds = %13
+  %19 = add nsw i32 %.0, 1
   br label %11, !llvm.loop !8
 
-19:                                               ; preds = %11
+20:                                               ; preds = %11
   ret i32 0
 }
 
