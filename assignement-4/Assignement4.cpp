@@ -157,7 +157,7 @@ namespace
      * Una dipendenza negativa si verifica quando L2 legge da una locazione
      * che L1 scriverà in una iterazione futura, violando l'ordine di esecuzione
      */
-    bool hasDependence(Loop* L1, Loop* L2, DependenceInfo* DI, ScalarEvolution* SE) {
+    bool hasDependence(Loop* L1, Loop* L2, ScalarEvolution* SE) {
       
       // STRATEGIA: cercare pattern Write-After-Read (WAR) tra i loop
       // Scorriamo tutte le scritture in L1 e tutte le letture in L2
@@ -196,6 +196,7 @@ namespace
                   Value* offsetL = getElemPtrL->getOperand(2);
                   outs() << "base: " << *baseL << "\n";
                   outs() << "offset" << *offsetL << "\n";
+                  outs() << "-----------------------------------------" << "\n";
 
                   // CONTROLLO DIPENDENZA: stessi array = possibile conflitto
                   if(baseS == baseL) {
@@ -205,10 +206,9 @@ namespace
                     // SCEV (Scalar Evolution) analizza come cambiano i valori nelle iterazioni
                     // Permette di capire pattern matematici negli indici degli array
                     const SCEV* storeSCEV = SE->getSCEV(offsetS);
-                    outs()<< *storeSCEV << "calcolo offset store \n";
+                    outs()<< *storeSCEV << "\t calcolo offset store \n";
                     const SCEV* loadSCEV = SE->getSCEV(offsetL);
-                    outs() << *loadSCEV << "calcolo offset load \n";
-
+                    outs() << *loadSCEV << "\t calcolo offset load \n";
                     // CAST A AddRecExpr: pattern ricorsivi del tipo {start, +, step}
                     // Rappresentano sequenze come start, start+step, start+2*step, ...
                     const SCEVAddRecExpr* storeARE = dyn_cast<SCEVAddRecExpr>(storeSCEV);
@@ -247,7 +247,12 @@ namespace
                             return true; // Dipendenza trovata = fusione non sicura
                           }
                         }
+                      } else {
+                        return true;
                       }
+                    }
+                    else {
+                      return true;
                     }
                   }
                 }
@@ -256,7 +261,6 @@ namespace
           }
         }
       }
-    
       return false; // Nessuna dipendenza negativa trovata
     }
 
@@ -271,7 +275,9 @@ namespace
       // Ogni loop ha una variabile di controllo (induction variable)
       // Sostituisco tutte le occorrenze di IV2 con IV1 per usare un solo contatore
       PHINode* IV1 = L1->getCanonicalInductionVariable();
+      if(!IV1) return;
       PHINode* IV2 = L2->getCanonicalInductionVariable();
+      if(!IV2) return;
       IV2->replaceAllUsesWith(IV1); // LLVM API per sostituire tutti gli usi
 
       // STEP 2: IDENTIFICAZIONE DEI BLOCCHI CHIAVE
@@ -374,8 +380,92 @@ namespace
 
       outs() << "Modifica dei branch completata\n";
       outs() << "-----------------------------------------" << "\n\n";
-      
       return;
+    }
+
+    bool isLoopFusionPossible(Loop* L1, Loop* L2, DominatorTree &DT, PostDominatorTree &PDT, ScalarEvolution &SE) {
+      // STEP 3: PIPELINE DI CONTROLLI PER LA FUSIONE SICURA
+      
+      outs() << "-----------------------------------------" << "\n";
+      outs() << "|     INIZIO CONTROLLO DI ADIACENZA     |" << "\n";
+      outs() << "-----------------------------------------" << "\n";
+      
+      // Test 1: I loop devono essere fisicamente adiacenti nel CFG
+      if(areAdjacent(L1, L2)) {
+        outs() << "I loop sono adiacenti\n \n";
+        outs() << "-----------------------------------------" << "\n";
+        outs() << "| INIZIO CONTROLLO DI CFG EQUIVALENZA   |" << "\n";
+        outs() << "-----------------------------------------" << "\n";
+
+        // Test 2: I loop devono avere struttura di controllo equivalente
+        if(areCFGEquivalent(L1,L2, DT, PDT)) {
+          outs() << "I loop sono CFG equivalenti\n\n";
+          outs() << "---------------------------------------------" << "\n";
+          outs() << "| INIZIO CONTROLLO SUL NUMERO DI ITERAZIONI |" << "\n";
+          outs() << "---------------------------------------------" << "\n";
+          
+          // Test 3: Stesso numero di iterazioni per preservare la semantica
+          if(sameIterationNumber(L1,L2,&SE)){
+            outs() << "I loop hanno lo stesso numero di iterazioni\n\n";
+            outs() << "---------------------------------------------------------" << "\n";
+            outs() << "| INIZIO CONTROLLO SULLE DIPENDENZE A DISTANZA NEGATIVA |" << "\n";
+            outs() << "---------------------------------------------------------" << "\n";
+            
+            // Test 4: Assenza di dipendenze che violerebbero l'ordine di esecuzione
+            if(hasDependence(L1, L2, &SE)) {
+              outs() << "I loop hanno dipendenze negative\n\n";
+              return false;
+              // Dipendenze negative = risultato diverso dopo la fusione
+            } else {
+              outs() << "I loop non hanno dipendenze negative\n\n";
+              return true;
+            // Nessuna dipendenza = fusione sicura dal punto di vista dei dati
+            }
+          } else {  
+            outs() << "I loop non hanno lo stesso numero di iterazioni\n\n";
+            return false;
+            // Numero diverso = comportamento diverso dopo la fusione
+          }
+        } else {
+          outs() << "I loop non sono CFG equivalenti\n\n";
+          return false;
+          // CFG diversi = semantica diversa = fusione non sicura
+        } 
+      } else {
+        outs() << "I loop non sono adiacenti\n \n";
+        return false;
+        // In un'implementazione completa, questo dovrebbe bloccare la fusione
+      }
+
+    }
+
+    void visitLoops(std::vector<Loop*> Loops, DominatorTree &DT, PostDominatorTree &PDT, ScalarEvolution &SE) {
+      outs() << "| ----------------------------------------- |" << "\n";
+      for (int i = 0; i < Loops.size(); i++)
+      {
+        for (int j = 0; j < Loops.size(); j++)
+        {
+          if(i!=j) {
+            if(isLoopFusionPossible(Loops[i],Loops[j],DT,PDT,SE)) {
+              // STEP 4: ESECUZIONE DELLA TRASFORMAZIONE
+              outs() << "-----------------------------------------" << "\n";
+              outs() << "|       INIZIO FUSIONE DEI LOOP         |" << "\n";
+              outs() << "-----------------------------------------" << "\n\n";
+
+              // In questa implementazione dimostrativa, eseguiamo sempre la fusione
+              // Un'implementazione di produzione dovrebbe fondere solo se tutti i test passano
+              fuseLoops(Loops[i],Loops[j]);
+              outs() << "-----------------------------------------" << "\n";
+              outs() << "|           FUSIONE COMPLETATA           |\n";
+              outs() << "-----------------------------------------" << "\n";
+            }
+          }
+        }
+        std::vector<Loop*> subLoops = Loops[i]->getSubLoopsVector();
+        if(subLoops.size() > 1) {
+          visitLoops(subLoops, DT, PDT, SE);
+        }
+      }
     }
 
     /**
@@ -387,86 +477,17 @@ namespace
     {
       // STEP 1: ACQUISIZIONE DELLE ANALISI NECESSARIE
       // Il sistema di analisi di LLVM fornisce informazioni sui loop e dominanza
-      LoopInfo &LI = AM.getResult<LoopAnalysis>(F);               // Informazioni sui loop
-      DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F); // Albero di dominanza
-      PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F); // Post-dominanza
+      LoopInfo &LI = AM.getResult<LoopAnalysis>(F);                         // Informazioni sui loop
+      DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);           // Albero di dominanza
+      PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);  // Post-dominanza
       ScalarEvolution &SE = AM.getResult<ScalarEvolutionAnalysis>(F);       // Analisi matematica
       DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);             // Analisi dipendenze
 
-      // STEP 2: IDENTIFICAZIONE DEI LOOP DA FONDERE
-      // Assumiamo che ci siano esattamente due loop top-level nella funzione
       std::vector<Loop*> Loops = LI.getTopLevelLoops();
-      if(Loops.size() < 2) {
-        outs() << "Non ci sono abbastanza loop\n";
-        return PreservedAnalyses::all(); // Nessuna modifica se meno di 2 loop
-      }
+
+      visitLoops(Loops, DT, PDT, SE); // Visita tutti i loop di F
       
-      // NOTA: L'ordine potrebbe sembrare controintuitivo ma riflette
-      // l'ordine di scoperta dei loop da parte di LLVM
-      Loop* L1 = Loops[1]; // Primo loop nel codice sorgente
-      Loop* L2 = Loops[0]; // Secondo loop nel codice sorgente
-      
-      // STEP 3: PIPELINE DI CONTROLLI PER LA FUSIONE SICURA
-      
-      outs() << "-----------------------------------------" << "\n";
-      outs() << "| INIZIO CONTROLLO DI ADIACENZA          |" << "\n";
-      outs() << "-----------------------------------------" << "\n";
-      // Test 1: I loop devono essere fisicamente adiacenti nel CFG
-      if(areAdjacent(L1, L2)) {
-        outs() << "I loop sono adiacenti\n \n";
-      } else {
-        outs() << "I loop non sono adiacenti\n \n";
-        // In un'implementazione completa, questo dovrebbe bloccare la fusione
-      }
 
-      outs() << "-----------------------------------------" << "\n";
-      outs() << "| INIZIO CONTROLLO DI CFG EQUIVALENZA    |" << "\n";
-      outs() << "-----------------------------------------" << "\n";
-      // Test 2: I loop devono avere struttura di controllo equivalente
-      if(areCFGEquivalent(L1,L2, DT, PDT)) {
-        outs() << "I loop sono CFG equivalenti\n\n";
-      } else {
-        outs() << "I loop non sono CFG equivalenti\n\n";
-        // CFG diversi = semantica diversa = fusione non sicura
-      } 
-
-      outs() << "-----------------------------------------" << "\n";
-      outs() << "| INIZIO CONTROLLO SUL NUMERO DI ITERAZIONI |" << "\n";
-      outs() << "-----------------------------------------" << "\n";
-      // Test 3: Stesso numero di iterazioni per preservare la semantica
-      if(sameIterationNumber(L1,L2,&SE)){
-        outs() << "I loop hanno lo stesso numero di iterazioni\n\n";
-      } else {
-        outs() << "I loop non hanno lo stesso numero di iterazioni\n\n";
-        // Numero diverso = comportamento diverso dopo la fusione
-      }
-
-      outs() << "-----------------------------------------" << "\n";
-      outs() << "| INIZIO CONTROLLO SULLE DIPENDENZE A DISTANZA NEGATIVA |" << "\n";
-      outs() << "-----------------------------------------" << "\n";
-      // Test 4: Assenza di dipendenze che violerebbero l'ordine di esecuzione
-      if(hasDependence(L1, L2, &DI, &SE)) {
-        outs() << "I loop hanno dipendenze\n\n";
-        // Dipendenze negative = risultato diverso dopo la fusione
-      } else {
-        outs() << "I loop non hanno dipendenze\n\n";
-        // Nessuna dipendenza = fusione sicura dal punto di vista dei dati
-      }
-
-      outs() << "-----------------------------------------" << "\n";
-
-      // STEP 4: ESECUZIONE DELLA TRASFORMAZIONE
-      outs() << "-----------------------------------------" << "\n";
-      outs() << "| INIZIO FUSIONE DEI LOOP                |" << "\n";
-      outs() << "-----------------------------------------" << "\n\n";
-
-      // In questa implementazione dimostrativa, eseguiamo sempre la fusione
-      // Un'implementazione di produzione dovrebbe fondere solo se tutti i test passano
-      fuseLoops(L1, L2);
-      outs() << "-----------------------------------------" << "\n";
-      outs() << "| Fusione completata                    |\n";
-      outs() << "-----------------------------------------" << "\n";
-      
       // STEP 5: NOTIFICA DELLE ANALISI PRESERVATE
       // Indichiamo a LLVM che tutte le analisi sono ancora valide
       // (in realtà alcune potrebbero essere invalidate dalla trasformazione)

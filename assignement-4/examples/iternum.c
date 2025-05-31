@@ -1,13 +1,21 @@
 int main()
 {
-    int A[11];
+    int A[12];
     int a = 0;
     int b = 0;
+    int c = 12;
     
-    for (int i = 0; i < 10; i++) {
-        A[i] = i*2;
+    if(c > -12) {
+        do{
+            A[a] = a*4;
+            a++;
+        } while ( a < 12);
     }
-    for(int i = 0; i < 10; i++) {
-        b = A[i+1];
+
+    if(c > -12) {
+        do{
+            c = A[b];
+            b++;
+        } while ( b < 12);
     }
 }
