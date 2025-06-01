@@ -49,38 +49,38 @@ define dso_local i32 @main() #0 {
 21:                                               ; preds = %27, %20
   %.03 = phi i32 [ 0, %20 ], [ %28, %27 ]
   %22 = icmp slt i32 %.03, 5
-  br i1 %22, label %23, label %29
+  br i1 %22, label %23, label %38
 
 23:                                               ; preds = %21
   %24 = mul nsw i32 %.03, 2
   %25 = sext i32 %.03 to i64
   %26 = getelementptr inbounds [10 x i32], ptr %1, i64 0, i64 %25
   store i32 %24, ptr %26, align 4
-  br label %27
+  br label %32
 
-27:                                               ; preds = %23
+27:                                               ; preds = %32
   %28 = add nsw i32 %.03, 1
   br label %21, !llvm.loop !9
 
-29:                                               ; preds = %21
+29:                                               ; No predecessors!
   br label %30
 
 30:                                               ; preds = %36, %29
   %.0 = phi i32 [ 0, %29 ], [ %37, %36 ]
-  %31 = icmp slt i32 %.0, 5
-  br i1 %31, label %32, label %38
+  %31 = icmp slt i32 %.03, 5
+  br i1 %31, label %36, label %36
 
-32:                                               ; preds = %30
-  %33 = sext i32 %.0 to i64
+32:                                               ; preds = %23
+  %33 = sext i32 %.03 to i64
   %34 = getelementptr inbounds [10 x i32], ptr %1, i64 0, i64 %33
   %35 = load i32, ptr %34, align 4
-  br label %36
+  br label %27
 
-36:                                               ; preds = %32
-  %37 = add nsw i32 %.0, 1
+36:                                               ; preds = %30, %30
+  %37 = add nsw i32 %.03, 1
   br label %30, !llvm.loop !10
 
-38:                                               ; preds = %30
+38:                                               ; preds = %21
   ret i32 0
 }
 

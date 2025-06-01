@@ -439,7 +439,7 @@ namespace
 
     }
 
-    void visitLoops(std::vector<Loop*> Loops, DominatorTree &DT, PostDominatorTree &PDT, ScalarEvolution &SE) {
+    bool visitLoops(std::vector<Loop*> Loops, DominatorTree &DT, PostDominatorTree &PDT, ScalarEvolution &SE) {
       outs() << "| ----------------------------------------- |" << "\n";
       for (int i = 0; i < Loops.size(); i++)
       {
@@ -458,6 +458,7 @@ namespace
               outs() << "-----------------------------------------" << "\n";
               outs() << "|           FUSIONE COMPLETATA           |\n";
               outs() << "-----------------------------------------" << "\n";
+              return true;
             }
           }
         }
@@ -466,6 +467,7 @@ namespace
           visitLoops(subLoops, DT, PDT, SE);
         }
       }
+      return false;
     }
 
     /**
@@ -484,9 +486,7 @@ namespace
       DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);             // Analisi dipendenze
 
       std::vector<Loop*> Loops = LI.getTopLevelLoops();
-
-      visitLoops(Loops, DT, PDT, SE); // Visita tutti i loop di F
-      
+      visitLoops(Loops, DT, PDT, SE);
 
       // STEP 5: NOTIFICA DELLE ANALISI PRESERVATE
       // Indichiamo a LLVM che tutte le analisi sono ancora valide
